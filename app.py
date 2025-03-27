@@ -3,9 +3,8 @@ import streamlit as st
 import pandas as pd
 import json
 from googletrans import Translator
-import matplotlib.pyplot as plt
 
-# כותרת ראשית
+st.set_page_config(page_title="Parkinson's Data Analyzer", layout="wide")
 st.title("Parkinson's Data Analyzer")
 
 # שלב 1: העלאת קובץ JSON
@@ -16,32 +15,31 @@ if uploaded_file:
     raw_data = json.load(uploaded_file)
     df = pd.json_normalize(raw_data)
 
-    st.subheader("Raw Data")
-    st.write(df.head())
-
-    # שלב 3: תרגום לעברית לאנגלית
-    st.subheader("Translating Hebrew to English")
+    # שלב 3: תרגום מאחורי הקלעים
     translator = Translator()
 
     def translate_column(col):
         return [translator.translate(str(val), src='iw', dest='en').text if isinstance(val, str) else val for val in col]
 
-    df_translated = df.copy()
-    for col in df.columns:
-        if df[col].dtype == object:
-            df_translated[col] = translate_column(df[col])
+    def translate_df(dataframe):
+        df_copy = dataframe.copy()
+        for col in df_copy.columns:
+            if df_copy[col].dtype == object:
+                try:
+                    df_copy[col] = translate_column(df_copy[col])
+                except:
+                    pass
+        return df_copy
 
-    st.subheader("Translated Data")
-    st.write(df_translated.head())
+    with st.spinner("Translating and analyzing your data..."):
+        df_translated = translate_df(df)
 
-    # שלב 4: דוגמה לניתוח נתונים פשוט
-    st.subheader("Basic Pattern Detection")
-    if "Intensity" in df_translated.columns:
-        st.write("Average Intensity by Type:")
-        if "Type" in df_translated.columns:
-            avg_intensity = df_translated.groupby("Type")["Intensity"].mean()
-            st.bar_chart(avg_intensity)
-        else:
-            st.warning("Column 'Type' not found in data.")
+    # שלב 4: ניתוח בסיסי - דוגמה
+    st.header("Basic Pattern Detection")
+
+    if "Intensity" in df_translated.columns and "Type" in df_translated.columns:
+        avg_by_type = df_translated.groupby("Type")["Intensity"].mean().sort_values()
+        st.subheader("Average Intensity per Type")
+        st.bar_chart(avg_by_type)
     else:
         st.warning("Column 'Intensity' not found in data.")
