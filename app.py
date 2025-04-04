@@ -5,43 +5,60 @@ import json
 import matplotlib.pyplot as plt
 from googletrans import Translator
 
-# כותרת ראשית
+st.set_page_config(page_title="Parkinson's Data Analyzer", layout="wide")
+
 st.title("Parkinson's Data Analyzer")
 
-# שלב 1: העלאת קובץ JSON
+# העלאת קובץ JSON
 uploaded_file = st.file_uploader("Upload your JSON file", type=["json"])
 
 if uploaded_file:
-    # שלב 2: קריאה לקובץ JSON מתוך activities
     raw_data = json.load(uploaded_file)
 
-    # נורמליזציה רק לרשימת הפעילויות
-    if "activities" in raw_data:
-        df = pd.json_normalize(raw_data, record_path='activities')
-    else:
-        st.error("No 'activities' key found in JSON.")
-        st.stop()
-
-    # תרגום עמודות מאחורי הקלעים
+    # תרגום כללי של מבנה הנתונים
     translator = Translator()
 
-    def translate_column(col):
-        return [translator.translate(str(val), src='iw', dest='en').text if isinstance(val, str) else val for val in col]
-
-    df_translated = df.copy()
-    for col in df_translated.columns:
-        if df_translated[col].dtype == object:
+    def translate_recursive(data):
+        if isinstance(data, dict):
+            return {translate_recursive(k): translate_recursive(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [translate_recursive(item) for item in data]
+        elif isinstance(data, str):
             try:
-                df_translated[col] = translate_column(df_translated[col])
+                return translator.translate(data, src='iw', dest='en').text
             except:
-                pass  # מדלג על שגיאות בתרגום
+                return data
+        else:
+            return data
 
-    # שלב 3: זיהוי דפוסים
-    st.header("Basic Pattern Detection")
+    # תרגום מלא של הקובץ
+    translated_data = translate_recursive(raw_data)
 
-    if 'intensity' in df_translated.columns:
-        st.subheader("Intensity Distribution")
-        intensity_counts = df_translated['intensity'].value_counts()
-        st.bar_chart(intensity_counts)
+    # שמירת הקובץ כ-JSON חדש
+    translated_file_path = "translated_data.json"
+    with open(translated_file_path, "w", encoding="utf-8") as f:
+        json.dump(translated_data, f, ensure_ascii=False, indent=2)
+
+    # כפתור להורדת הקובץ המתורגם
+    with open(translated_file_path, "rb") as f:
+        st.download_button(
+            label="📥 Download Translated JSON",
+            data=f,
+            file_name="translated_data.json",
+            mime="application/json"
+        )
+
+    # ניתוח מתוך activities בלבד
+    if "activities" in translated_data:
+        df = pd.json_normalize(translated_data, record_path='activities')
+
+        st.header("Basic Pattern Detection")
+
+        if 'intensity' in df.columns:
+            st.subheader("Intensity Distribution")
+            intensity_counts = df['intensity'].value_counts()
+            st.bar_chart(intensity_counts)
+        else:
+            st.warning("Column 'intensity' not found in data.")
     else:
-        st.warning("Column 'intensity' not found in data.")
+        st.warning("'activities' not found in the uploaded file.")
