@@ -4,6 +4,8 @@ import os
 from deep_translator import GoogleTranslator
 import requests
 from github import Github
+import matplotlib.pyplot as plt
+import numpy as np
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
 def translate_json(file):
@@ -63,6 +65,27 @@ def translate_json(file):
     
     return file_url
 
+# פונקציה ליצירת גרף ריק
+def create_empty_graph():
+    x = np.arange(0, 24, 1)  # שעות מ-0 עד 23 (12 בלילה עד 12 בלילה)
+    y = np.zeros_like(x)  # נתונים ריקים לציר Y (ערכים שווים לאפס)
+
+    plt.figure(figsize=(10,6))
+    plt.plot(x, y, label="Empty Graph")
+    plt.xlabel("Hours of the Day (12 AM to 12 AM)")
+    plt.ylabel("Values (1-5)")
+    plt.title("Empty Graph with X and Y Axis")
+    plt.xticks(np.arange(0, 24, 1), labels=[f"{int(i)}:00" for i in np.arange(0, 24, 1)])
+    plt.yticks(np.arange(1, 6, 1))
+    plt.grid(True)
+    plt.legend()
+    
+    # שמירת הגרף כקובץ תמונה
+    graph_path = "/mnt/data/empty_graph.png"
+    plt.savefig(graph_path)
+    plt.close()
+    return graph_path
+
 # ממשק Gradio
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
@@ -70,13 +93,17 @@ with gr.Blocks() as demo:
     # העלאת קובץ JSON עם כפתור קטן
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"])
-    
+
+    # הצגת גרף ריק
+    empty_graph = gr.Image(label="Empty Graph", type="file")
+
     # פונקציה להעלאת הקובץ
     def handle_upload(file):
         file_url = translate_json(file)  # תרגום הקובץ
-        return gr.HTML(f'<a href="{file_url}" target="_blank">Download Translated File</a>')  # הצגת קישור להורדה
+        graph_path = create_empty_graph()  # יצירת גרף ריק
+        return gr.HTML(f'<a href="{file_url}" target="_blank">Download Translated File</a>'), graph_path  # הצגת קישור להורדה + גרף
 
-    translate_btn = gr.Button("Generate Translated File")
-    translate_btn.click(fn=handle_upload, inputs=[file_input], outputs=[gr.HTML()])
+    translate_btn = gr.Button("Generate Translated File and Graph")
+    translate_btn.click(fn=handle_upload, inputs=[file_input], outputs=[gr.HTML(), empty_graph])
 
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
