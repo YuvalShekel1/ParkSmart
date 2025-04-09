@@ -26,4 +26,12 @@ jobs:
 
     - name: Run app.py for translation
       run: |
-        python app.py
+        python app.py  # ודא שהקובץ נשמר בצורה נכונה
+
+    - name: Commit and push translated file
+      run: |
+        git config --global user.name "Your Name"
+        git config --global user.email "your-email@example.com"
+        git add ParkSmart/.github/workflows/translated_data.json  # שים את הנתיב של הקובץ המתורגם כאן
+        git commit -m "Add translated file"
+        git push
