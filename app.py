@@ -2,6 +2,7 @@ import gradio as gr
 import json
 import os
 from deep_translator import GoogleTranslator
+import time
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
 def translate_json(file, progress=gr.Progress()):
@@ -17,12 +18,8 @@ def translate_json(file, progress=gr.Progress()):
 
     # פונקציה שמתרגמת כל ערך
     def translate_value(val):
-        if isinstance(val, str):
-            if any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
-                try:
-                    return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
-                except Exception as e:
-                    return f"Translation Error: {str(e)}"
+        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
+            return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
         return val
 
     def recursive_translate(obj):
@@ -36,11 +33,13 @@ def translate_json(file, progress=gr.Progress()):
     # תרגום כל הנתונים
     translated = recursive_translate(data)
 
-    # הוספת פרוגרס
-    progress(0.5)  # 50% עברו בזמן התרגום
+    # יצירת תיקיית היעד אם היא לא קיימת
+    output_dir = "/mnt/data/"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     # שמירת הקובץ המתורגם
-    translated_file_path = "/mnt/data/translated_data.json"
+    translated_file_path = os.path.join(output_dir, "translated_data.json")
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
@@ -79,15 +78,15 @@ with gr.Blocks() as demo:
 
     # פונקציה להעלאת הקובץ ויצירת גרף
     def handle_upload(file, types, activity):
-        status_message.value = "Uploading and processing data... Please wait."  # עדכון הסטטוס
+        status_message.update(value="Uploading and processing data... Please wait.")
         
         # הצגת בר הטעינה במהלך התרגום
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
-            status_message.value = translated_file_path  # עדכון הסטטוס
+            status_message.update(value=translated_file_path)
             return None  # לא ליצור גרף אם הייתה שגיאה
         
-        status_message.value = "File uploaded and translated successfully!"  # עדכון הסטטוס
+        status_message.update(value="File uploaded and translated successfully!")
         
         # הצגת הגרף לאחר התרגום
         return plot_graph([], [types], activity), status_message, gr.File.update(value=translated_file_path, visible=True)
