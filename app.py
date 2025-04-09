@@ -2,7 +2,6 @@ import gradio as gr
 import json
 import os
 from deep_translator import GoogleTranslator
-import time
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
 def translate_json(file, progress=gr.Progress()):
@@ -18,8 +17,12 @@ def translate_json(file, progress=gr.Progress()):
 
     # פונקציה שמתרגמת כל ערך
     def translate_value(val):
-        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
-            return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
+        if isinstance(val, str):
+            if any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
+                try:
+                    return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
+                except Exception as e:
+                    return f"Translation Error: {str(e)}"
         return val
 
     def recursive_translate(obj):
