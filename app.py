@@ -12,7 +12,8 @@ def translate_json(file, selected_types):
 
     def translate_value(val):
         if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # Detect Hebrew
-            return f"translated({val})"
+            # כאן תוכל להוסיף את הלוגיקה של תרגום עברית לאנגלית
+            return f"translated({val})"  # זו רק דוגמה לתרגום
         return val
 
     def recursive_translate(obj):
@@ -23,7 +24,10 @@ def translate_json(file, selected_types):
         else:
             return translate_value(obj)
 
-    translated = [recursive_translate(item) for item in data if item.get("type") in selected_types]
+    # סינון המידע על פי סוגי הטייפ שנבחרו
+    translated = [
+        recursive_translate(item) for item in data if item.get("type") in selected_types
+    ]
 
     output_path = "translated_output.json"
     with open(output_path, "w", encoding="utf-8") as f:
@@ -33,20 +37,24 @@ def translate_json(file, selected_types):
 
 with gr.Blocks() as demo:
     gr.Markdown("## Parkinson Analyzer (Hebrew to English)")
-
+    
+    # העלאת קובץ JSON
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"])
-        selected_types = gr.CheckboxGroup(
-            ["My Mood", "Parkinson's State", "Physical State", "Medication", "Exercise", "Diet"],
-            label="Select types to translate",
-        )
-
+    
+    # תיבת צ'קבוקס לבחירת סוגי טייפ לתרגום
+    selected_types = gr.CheckboxGroup(
+        ["My Mood", "Parkinson's State", "Physical State", "Medication", "Exercise", "Diet"],
+        label="Select types to translate",
+    )
+    
+    # תוצאה של התרגום (תצוגה ומורדת כקובץ JSON)
     output_json = gr.JSON(label="Translated JSON")
     download_btn = gr.File(label="Download Translated File")
-
+    
     def handle_translate(file, types):
         return translate_json(file, types)
-
+    
     translate_btn = gr.Button("Translate")
     translate_btn.click(fn=handle_translate, inputs=[file_input, selected_types], outputs=[output_json, download_btn])
 
