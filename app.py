@@ -32,7 +32,7 @@ def translate_json(file, selected_types):
     return translated, data  # Return translated data along with original data
 
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(15, 8))  # Increased size for bigger graph
 
     hours = np.arange(0, 24, 1)  # 0-23 hours
     ax.set_xticks(hours)
@@ -79,6 +79,14 @@ with gr.Blocks() as demo:
                 width: 150px;  /* Smaller width */
                 border-radius: 5px; /* Rounded corners for square button */
                 margin-bottom: 10px;  /* Optional: Space below the button */
+            }
+            /* Add style to ensure the graph is larger and occupies more of the screen */
+            .gradio-container {
+                width: 100%;
+            }
+            .gradio-plot {
+                width: 100%;
+                height: 600px;  /* Optional: you can adjust this for different sizes */
             }
         </style>
     """)
