@@ -3,6 +3,7 @@ import json
 import os
 from deep_translator import GoogleTranslator
 import time
+import shutil
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
 def translate_json(file, progress=gr.Progress()):
@@ -38,16 +39,20 @@ def translate_json(file, progress=gr.Progress()):
     translated = recursive_translate(data)
 
     # יצירת תיקיית היעד אם היא לא קיימת
-    output_dir = "./.github/workflows/"  # שמירה בתיקיית workflows
+    output_dir = "ParkSmart/.github/workflows/"  # תיקיית היעד היא בתוך המאגר שלך
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # שמירת הקובץ המתורגם
+    # שמירת הקובץ המתורגם בתיקייה המבוקשת
     translated_file_path = os.path.join(output_dir, "translated_data.json")
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
     progress(1)  # סיום, 100%
+
+    # לאחר שמירת הקובץ, נוודא שהוא יתווסף למאגר (GitHub)
+    # העתקת הקובץ מהתיקייה המקומית לתוך תיקיית ה־workflow של GitHub
+    shutil.copy(translated_file_path, "ParkSmart/.github/workflows/translated_data.json")
 
     return translated_file_path
 
@@ -88,12 +93,12 @@ with gr.Blocks() as demo:
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
             status_message.value = translated_file_path
-            return None, status_message, None  # לא ליצור גרף אם הייתה שגיאה
+            return None  # לא ליצור גרף אם הייתה שגיאה
         
         status_message.value = "File uploaded and translated successfully!"
         
         # הצגת הגרף לאחר התרגום
-        return plot_graph([], [types], activity), status_message, gr.File.update(value=translated_file_path, visible=True)  # תיקון החזרת הפלטים
+        return plot_graph([], [types], activity), status_message, gr.File.update(value=translated_file_path, visible=True)
 
     translate_btn = gr.Button("Generate Visualization")
     translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity], outputs=[output_graph, status_message, file_input])
