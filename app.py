@@ -17,8 +17,7 @@ def translate_json(file, selected_types):
 
     def translate_value(val):
         if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # Detect Hebrew
-            # תרגום לעברית (שימוש בתרגום לדוגמה כאן)
-            return f"translated({val})"  # זה רק דוגמה לתרגום
+            return f"translated({val})"  # Example translation
         return val
 
     def recursive_translate(obj):
@@ -29,7 +28,7 @@ def translate_json(file, selected_types):
         else:
             return translate_value(obj)
 
-    # מבצע את התרגום לכל הקובץ
+    # Perform translation on the whole file
     translated = [
         recursive_translate(item) for item in data
     ]
