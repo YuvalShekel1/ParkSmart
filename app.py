@@ -3,6 +3,7 @@ import json
 import os
 from deep_translator import GoogleTranslator
 import time
+import shutil
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
 def translate_json(file, progress=gr.Progress()):
@@ -38,8 +39,8 @@ def translate_json(file, progress=gr.Progress()):
     # תרגום רק 10 השורות הראשונות
     translated = recursive_translate(data)
 
-    # יצירת תיקיית היעד אם היא לא קיימת
-    output_dir = "/mnt/data/"
+    # תיקיית היעד ב-GitHub
+    output_dir = "ParkSmart/.github/workflows"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
