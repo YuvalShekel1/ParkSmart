@@ -59,11 +59,11 @@ def plot_graph(data, selected_types, symbol="☕"):
             ax.text(hour, value, symbol, fontsize=12, color="blue", ha='center')
 
         # יצירת הגרף עבור כל פרמטר שנבחר
-        if 'My Mood' in selected_types:
+        if "My Mood" in selected_types:
             ax.plot(hour, value, 'ro')  # הצגת נקודה אדומה עבור mood
-        if 'Parkinson's State' in selected_types:
+        if "Parkinson's State" in selected_types:
             ax.plot(hour, value, 'bo')  # הצגת נקודה כחולה עבור Parkinson's State
-        if 'Physical State' in selected_types:
+        if "Physical State" in selected_types:
             ax.plot(hour, value, 'go')  # הצגת נקודה ירוקה עבור Physical State
 
     # הצגת גרף
