@@ -4,7 +4,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-def translate_json(file, selected_types):
+# פונקציה לתרגום של ערכים בעברית לאנגלית
+def translate_value(val):
+    if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה טקסט בעברית
+        return f"translated({val})"  # כאן צריך לשים את הלוגיקה של תרגום אמיתי לעברית לאנגלית
+    return val
+
+# פונקציה שמבצעת את התרגום לכל הקובץ
+def translate_json(file):
     if file is None:
         return "No file uploaded", None
 
@@ -15,11 +22,6 @@ def translate_json(file, selected_types):
     except Exception as e:
         return f"Error reading file: {str(e)}", None
 
-    def translate_value(val):
-        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # Detect Hebrew
-            return f"translated({val})"  # Example translation
-        return val
-
     def recursive_translate(obj):
         if isinstance(obj, dict):
             return {k: recursive_translate(v) for k, v in obj.items()}
@@ -28,12 +30,10 @@ def translate_json(file, selected_types):
         else:
             return translate_value(obj)
 
-    translated = [
-        recursive_translate(item) for item in data if item.get("type") in selected_types
-    ]
+    translated_data = recursive_translate(data)
+    return translated_data
 
-    return translated
-
+# פונקציה להציג גרף
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -80,37 +80,41 @@ with gr.Blocks() as demo:
         </style>
     """)
 
-    # Upload JSON button with small size
+    # העלאת קובץ JSON עם כפתור קטן
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"], elem_id="file-upload-btn")
     
-    # Radio buttons to select feelings to visualize
+    # Radio buttons לבחירת רגשות לתצוגה
     selected_types = gr.Radio(
         ["My Mood", "Parkinson's State", "Physical State"],
         label="Select feelings to visualize",
     )
 
-    # Radio buttons to select activity to visualize
+    # Radio buttons לבחירת פעילות להציג
     selected_activity = gr.Radio(
         ["symptoms", "medicines", "nutritions", "activities"],
         label="Select activity to visualize",
     )
 
+    # גרף של רגשות ופעילויות
     output_graph = gr.Plot(label="Graph of Mood and Activities")
     status_message = gr.HTML(label="Status", value="")
 
     def handle_upload(file, types, activity):
-        # Show progress
+        # הצגת פידבק למשתמש
         status_message.update(value="Uploading and processing data... Please wait.")
         
-        data = translate_json(file, types)
-        if isinstance(data, str):  # If the response is an error message
-            status_message.update(value=data)
-            return None  # Don't generate the graph if there was an error
+        # תרגום הקובץ
+        translated_data = translate_json(file)
+        if isinstance(translated_data, str):  # אם יש שגיאה
+            status_message.update(value=translated_data)
+            return None  # לא ליצור גרף אם הייתה שגיאה
         
-        status_message.update(value="File uploaded successfully!")
+        # עדכון מצב אחרי שהקובץ הועלה בהצלחה
+        status_message.update(value="File uploaded and translated successfully!")
         
-        return plot_graph(data, [types], activity)
+        # יצירת הגרף
+        return plot_graph(translated_data, [types], activity)
 
     translate_btn = gr.Button("Generate Visualization")
     translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity], outputs=[output_graph, status_message])
