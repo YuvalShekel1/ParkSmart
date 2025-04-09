@@ -76,15 +76,15 @@ with gr.Blocks() as demo:
 
     # פונקציה להעלאת הקובץ ויצירת גרף
     def handle_upload(file, types, activity):
-        status_message.update(value="Uploading and processing data... Please wait.")
+        status_message.value = "Uploading and processing data... Please wait."  # עדכון הסטטוס
         
         # הצגת בר הטעינה במהלך התרגום
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
-            status_message.update(value=translated_file_path)
+            status_message.value = translated_file_path  # עדכון הסטטוס
             return None  # לא ליצור גרף אם הייתה שגיאה
         
-        status_message.update(value="File uploaded and translated successfully!")
+        status_message.value = "File uploaded and translated successfully!"  # עדכון הסטטוס
         
         # הצגת הגרף לאחר התרגום
         return plot_graph([], [types], activity), status_message, gr.File.update(value=translated_file_path, visible=True)
