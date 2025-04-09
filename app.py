@@ -43,6 +43,11 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 
     ax.set_title("Mood, Parkinson's State & Physical State over Time")
 
+    # Plotting empty graph initially if no data exists
+    if len(data) == 0:
+        plt.tight_layout()
+        return fig
+
     for entry in data:
         hour = entry.get('hour', 0)
         value = entry.get('value', 3)
@@ -94,10 +99,14 @@ with gr.Blocks() as demo:
         label="Select activity to visualize",
     )
 
+    # Initial empty graph with X and Y axis only
     output_graph = gr.Plot(label="Graph of Mood and Activities")
 
     def handle_upload(file, types, activity):
         data = translate_json(file, types)
+        # Return the empty graph if no file or data is uploaded
+        if not data:
+            return plot_graph([], types, activity)
         return plot_graph(data, [types], activity)
 
     translate_btn = gr.Button("Generate Visualization")
