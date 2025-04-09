@@ -47,9 +47,6 @@ def translate_json(file, progress=gr.Progress()):
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
-    # אם אתה רוצה לוודא שהקובץ אכן נשמר, תוכל להדפיס את הנתיב שלו
-    print(f"File saved at: {translated_file_path}")
-
     progress(1)  # סיום, 100%
 
     return translated_file_path  # מחזיר את הנתיב של הקובץ המתורגם
@@ -91,7 +88,7 @@ with gr.Blocks() as demo:
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
             status_message.value = translated_file_path
-            return None  # לא ליצור גרף אם הייתה שגיאה
+            return None, status_message, None  # להחזיר גם את הודעת השגיאה וגם None במקום גרף
         
         status_message.value = "File uploaded and translated successfully!"
         
