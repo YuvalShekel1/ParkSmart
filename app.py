@@ -3,8 +3,11 @@ import json
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+from deep_translator import GoogleTranslator
+import pandas as pd
 
-def translate_json(file, selected_types):
+# פונקציה לתרגום הקובץ כולו מעברית לאנגלית
+def translate_json(file):
     if file is None:
         return "No file uploaded", None
 
@@ -15,9 +18,10 @@ def translate_json(file, selected_types):
     except Exception as e:
         return f"Error reading file: {str(e)}", None
 
+    # פונקציה שמתרגמת כל ערך
     def translate_value(val):
-        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # Detect Hebrew
-            return f"translated({val})"  # Example translation
+        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
+            return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
         return val
 
     def recursive_translate(obj):
@@ -28,15 +32,14 @@ def translate_json(file, selected_types):
         else:
             return translate_value(obj)
 
-    # Perform translation on the whole file
-    translated = [
-        recursive_translate(item) for item in data
-    ]
+    # תרגום כל הנתונים
+    translated = recursive_translate(data)
 
     return translated
 
+# פונקציה ליצירת גרף
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     hours = np.arange(0, 24, 1)  # 0-23 hours
     ax.set_xticks(hours)
@@ -51,9 +54,11 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
         hour = entry.get('hour', 0)
         value = entry.get('value', 3)
 
+        # הצגת סימן עבור פעילות אם יש
         if selected_activity == 'nutritions' and hour == entry.get("hour"):
             ax.text(hour, value, symbol, fontsize=12, color="blue", ha='center')
 
+        # הצגת נקודות עבור כל פרמטר שנבחר
         if "My Mood" in selected_types:
             ax.plot(hour, value, 'ro')
         if "Parkinson's State" in selected_types:
@@ -64,33 +69,21 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
     plt.tight_layout()
     return fig
 
+# ממשק Gradio
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    gr.HTML("""
-        <style>
-            #file-upload-btn {
-                font-size: 12px;
-                padding: 5px 10px;
-                height: 40px;
-                width: 150px;
-                border-radius: 5px;
-                margin-bottom: 10px;
-            }
-        </style>
-    """)
-
-    # Upload JSON button with small size
+    # העלאת קובץ JSON עם כפתור קטן
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"], elem_id="file-upload-btn")
     
-    # Radio buttons to select feelings to visualize
+    # בחירת סוגי "feelings" להצגה
     selected_types = gr.Radio(
         ["My Mood", "Parkinson's State", "Physical State"],
         label="Select feelings to visualize",
     )
 
-    # Radio buttons to select activity to visualize
+    # בחירת פעילות להצגה
     selected_activity = gr.Radio(
         ["symptoms", "medicines", "nutritions", "activities"],
         label="Select activity to visualize",
@@ -99,20 +92,18 @@ with gr.Blocks() as demo:
     output_graph = gr.Plot(label="Graph of Mood and Activities")
     status_message = gr.HTML(label="Status", value="")
 
+    # פונקציה להעלאת הקובץ ויצירת גרף
     def handle_upload(file, types, activity):
-        # Show progress message
         status_message.update(value="Uploading and processing data... Please wait.")
         
-        # Perform file translation
-        data = translate_json(file, types)
-        if isinstance(data, str):  # Error message in case of failure
+        data = translate_json(file)  # תרגום הקובץ
+        if isinstance(data, str):  # אם התשובה היא הודעת שגיאה
             status_message.update(value=data)
-            return None  # Don't generate the graph if there was an error
+            return None  # לא ליצור גרף אם הייתה שגיאה
         
-        # If successful, update the status message
         status_message.update(value="File uploaded and translated successfully!")
         
-        # Generate the graph
+        # הצגת הגרף לאחר התרגום
         return plot_graph(data, [types], activity)
 
     translate_btn = gr.Button("Generate Visualization")
