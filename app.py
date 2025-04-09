@@ -43,7 +43,7 @@ def translate_json(file):
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
     # העלאת הקובץ ל-GitHub
-    github_token = "your_github_token"  # הכנס את הטוקן שלך
+    github_token = "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"  # הכנס את הטוקן שלך
     repo_name = "your_github_username/your_repository_name"  # הכנס את שם הרפוזיטורי
     file_path_in_repo = ".github/workflows/translated_data.json"  # נתיב הקובץ ב-GitHub
     
