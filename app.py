@@ -90,20 +90,19 @@ def create_empty_graph():
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
+    # הצגת גרף ריק ישר עם טעינת האתר
+    empty_graph = gr.Image(label="Empty Graph", type="file", value=create_empty_graph())  # הגרף ייטען אוטומטית
+
     # העלאת קובץ JSON עם כפתור קטן
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"])
 
-    # הצגת גרף ריק
-    empty_graph = gr.Image(label="Empty Graph", type="file")
-
     # פונקציה להעלאת הקובץ
     def handle_upload(file):
         file_url = translate_json(file)  # תרגום הקובץ
-        graph_path = create_empty_graph()  # יצירת גרף ריק
-        return gr.HTML(f'<a href="{file_url}" target="_blank">Download Translated File</a>'), graph_path  # הצגת קישור להורדה + גרף
+        return gr.HTML(f'<a href="{file_url}" target="_blank">Download Translated File</a>')  # הצגת קישור להורדה
 
-    translate_btn = gr.Button("Generate Translated File and Graph")
-    translate_btn.click(fn=handle_upload, inputs=[file_input], outputs=[gr.HTML(), empty_graph])
+    translate_btn = gr.Button("Generate Translated File")
+    translate_btn.click(fn=handle_upload, inputs=[file_input], outputs=[gr.HTML()])
 
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
