@@ -89,7 +89,7 @@ with gr.Blocks() as demo:
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
             status_message.value = translated_file_path
-            return None  # לא ליצור גרף אם הייתה שגיאה
+            return None, status_message, None  # לא ליצור גרף אם הייתה שגיאה
         
         status_message.value = "File uploaded and translated successfully!"
         
