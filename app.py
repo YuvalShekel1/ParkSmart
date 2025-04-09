@@ -5,10 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from deep_translator import GoogleTranslator
 import pandas as pd
-import time
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
-def translate_json(file, progress=gr.Progress()):
+def translate_json(file):
     if file is None:
         return "No file uploaded", None
 
@@ -36,12 +35,7 @@ def translate_json(file, progress=gr.Progress()):
     # תרגום כל הנתונים
     translated = recursive_translate(data)
 
-    # סימול התקדמות בתרגום
-    for i in range(10):  # נציג 10 שלבים
-        progress(i / 10)  # עדכון פרוגרס בר
-        time.sleep(0.5)  # הפסקה קטנה כדי לדמות עבודה
-
-    # שמירת הקובץ המתורגם
+    # שמירת הנתונים המתורגמים כקובץ חדש
     translated_file_path = "/mnt/data/translated_data.json"
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
@@ -102,27 +96,23 @@ with gr.Blocks() as demo:
 
     output_graph = gr.Plot(label="Graph of Mood and Activities")
     status_message = gr.HTML(label="Status", value="")
-    download_button = gr.File(label="Download Translated File")
-
-    # Progress bar for upload and translation
-    progress_bar = gr.Progress()
+    download_button = gr.File(label="Download Translated File", file=None)
 
     # פונקציה להעלאת הקובץ ויצירת גרף
     def handle_upload(file, types, activity):
-        # Show progress
         status_message.update(value="Uploading and processing data... Please wait.")
         
-        translated_file_path = translate_json(file, progress=progress_bar)  # תרגום הקובץ
-        if isinstance(translated_file_path, str) and translated_file_path.startswith("Error"):  # אם התשובה היא הודעת שגיאה
+        translated_file_path = translate_json(file)  # תרגום הקובץ
+        if isinstance(translated_file_path, str) and translated_file_path.startswith("Error"):  # אם הייתה שגיאה
             status_message.update(value=translated_file_path)
             return None, status_message, None
         
         status_message.update(value="File uploaded and translated successfully!")
         
         # הצגת הגרף לאחר התרגום
-        return plot_graph([], [types], activity), status_message, download_button.update(value=translated_file_path)
+        return plot_graph([], [types], activity), status_message, translated_file_path
 
     translate_btn = gr.Button("Generate Visualization")
     translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity], outputs=[output_graph, status_message, download_button])
 
-    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860))) 
+    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
