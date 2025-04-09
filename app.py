@@ -65,23 +65,23 @@ def translate_json(file):
     
     return file_url
 
-# פונקציה ליצירת גרף ריק
-def create_empty_graph():
+# פונקציה ליצירת גרף עם צירים
+def create_default_graph():
     x = np.arange(0, 24, 1)  # שעות מ-0 עד 23 (12 בלילה עד 12 בלילה)
     y = np.zeros_like(x)  # נתונים ריקים לציר Y (ערכים שווים לאפס)
 
     plt.figure(figsize=(10,6))
-    plt.plot(x, y, label="Empty Graph")
+    plt.plot(x, y, label="Mood and Activities")
     plt.xlabel("Hours of the Day (12 AM to 12 AM)")
     plt.ylabel("Values (1-5)")
-    plt.title("Empty Graph with X and Y Axis")
+    plt.title("Graph of Mood and Activities")
     plt.xticks(np.arange(0, 24, 1), labels=[f"{int(i)}:00" for i in np.arange(0, 24, 1)])
     plt.yticks(np.arange(1, 6, 1))
     plt.grid(True)
     plt.legend()
     
     # שמירת הגרף כקובץ תמונה
-    graph_path = "/mnt/data/empty_graph.png"
+    graph_path = "/mnt/data/default_graph.png"
     plt.savefig(graph_path)
     plt.close()
     return graph_path
@@ -90,8 +90,8 @@ def create_empty_graph():
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    # הצגת גרף ריק ישר עם טעינת האתר
-    empty_graph = gr.Image(label="Empty Graph", type="file", value=create_empty_graph())  # הגרף ייטען אוטומטית
+    # הצגת גרף דיפולטי עם צירי X ו-Y
+    default_graph = gr.Image(label="Graph of Mood and Activities", type="file", value=create_default_graph())  # הגרף ייטען אוטומטית
 
     # העלאת קובץ JSON עם כפתור קטן
     with gr.Row():
