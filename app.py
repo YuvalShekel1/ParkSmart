@@ -9,8 +9,11 @@ def translate_json(file, selected_types):
         return "No file uploaded", None
 
     file_path = file.name
-    with open(file_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        return f"Error reading file: {str(e)}", None
 
     def translate_value(val):
         if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # Detect Hebrew
@@ -63,7 +66,6 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    # Add CSS specifically for the file upload button (without affecting the rest of the page)
     gr.HTML("""
         <style>
             /* Custom style for the file upload button only */
@@ -102,6 +104,10 @@ with gr.Blocks() as demo:
         status_message.update(value="Uploading and processing data... Please wait.")
         
         data = translate_json(file, types)
+        if isinstance(data, str):  # If the response is an error message
+            status_message.update(value=data)
+            return None  # Don't generate the graph if there was an error
+        
         status_message.update(value="File uploaded successfully!")
         
         return plot_graph(data, [types], activity)
