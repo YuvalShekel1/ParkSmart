@@ -104,7 +104,7 @@ with gr.Blocks() as demo:
 
     output_graph = gr.Plot(label="Graph of Mood and Activities")
     status_message = gr.HTML(label="Status", value="")
-    download_button = gr.File(label="Download Translated File", file=None)
+    download_button = gr.File(label="Download Translated File")
 
     def handle_upload(file, types, activity):
         # Show progress
