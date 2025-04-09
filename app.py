@@ -38,7 +38,7 @@ def translate_json(file, progress=gr.Progress()):
     translated = recursive_translate(data)
 
     # יצירת תיקיית היעד אם היא לא קיימת
-    output_dir = "/mnt/data/"
+    output_dir = "./.github/workflows/"  # שמירה בתיקיית workflows
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
