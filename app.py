@@ -50,10 +50,6 @@ def translate_json(file, progress=gr.Progress()):
 
     progress(1)  # סיום, 100%
 
-    # לאחר שמירת הקובץ, נוודא שהוא יתווסף למאגר (GitHub)
-    # העתקת הקובץ מהתיקייה המקומית לתוך תיקיית ה־workflow של GitHub
-    shutil.copy(translated_file_path, "ParkSmart/.github/workflows/translated_data.json")
-
     return translated_file_path
 
 # פונקציה ליצירת גרף
