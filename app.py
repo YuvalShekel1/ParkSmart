@@ -6,7 +6,7 @@ import numpy as np
 
 def translate_json(file, selected_types):
     if file is None:
-        return "No file uploaded", None
+        return [], None  # Return empty data and None when no file is uploaded
 
     file_path = file.name
     with open(file_path, "r", encoding="utf-8") as f:
@@ -28,8 +28,8 @@ def translate_json(file, selected_types):
     translated = [
         recursive_translate(item) for item in data if item.get("type") in selected_types
     ]
-
-    return translated
+    
+    return translated, data  # Return translated data along with original data
 
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -103,7 +103,7 @@ with gr.Blocks() as demo:
     output_graph = gr.Plot(label="Graph of Mood and Activities")
 
     def handle_upload(file, types, activity):
-        data = translate_json(file, types)
+        data, _ = translate_json(file, types)
         # Return the empty graph if no file or data is uploaded
         if not data:
             return plot_graph([], types, activity)
