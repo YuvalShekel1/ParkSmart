@@ -19,7 +19,11 @@ def translate_json(file, progress=gr.Progress()):
     # פונקציה שמתרגמת כל ערך
     def translate_value(val):
         if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
-            return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
+            try:
+                # וידוא שהשפות נכונות — deep_translator מקבלת קודים של שפות
+                return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
+            except Exception as e:
+                return f"Error during translation: {str(e)}"
         return val
 
     def recursive_translate(obj):
