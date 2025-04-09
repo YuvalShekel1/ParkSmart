@@ -3,7 +3,6 @@ import json
 import os
 from deep_translator import GoogleTranslator
 import time
-import shutil
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
 def translate_json(file, progress=gr.Progress()):
@@ -27,23 +26,24 @@ def translate_json(file, progress=gr.Progress()):
                 return f"Error during translation: {str(e)}"
         return val
 
-    def recursive_translate(obj):
+    def recursive_translate(obj, max_lines=10):
+        # הגבלת התרגום ל-10 שורות בלבד
         if isinstance(obj, dict):
-            return {k: recursive_translate(v) for k, v in obj.items()}
+            return {k: recursive_translate(v, max_lines) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [recursive_translate(item) for item in obj]
+            return [recursive_translate(item, max_lines) for item in obj[:max_lines]]  # תרגום רק 10 פריטים
         else:
             return translate_value(obj)
 
-    # תרגום כל הנתונים
+    # תרגום רק 10 השורות הראשונות
     translated = recursive_translate(data)
 
     # יצירת תיקיית היעד אם היא לא קיימת
-    output_dir = "ParkSmart/.github/workflows/"  # תיקיית היעד היא בתוך המאגר שלך
+    output_dir = "/mnt/data/"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # שמירת הקובץ המתורגם בתיקייה המבוקשת
+    # שמירת הקובץ המתורגם
     translated_file_path = os.path.join(output_dir, "translated_data.json")
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
@@ -89,7 +89,7 @@ with gr.Blocks() as demo:
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
             status_message.value = translated_file_path
-            return None, status_message, None  # לא ליצור גרף אם הייתה שגיאה
+            return None  # לא ליצור גרף אם הייתה שגיאה
         
         status_message.value = "File uploaded and translated successfully!"
         
