@@ -2,7 +2,6 @@ import gradio as gr
 import json
 import os
 from deep_translator import GoogleTranslator
-import time
 import shutil
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
@@ -27,20 +26,19 @@ def translate_json(file, progress=gr.Progress()):
                 return f"Error during translation: {str(e)}"
         return val
 
-    def recursive_translate(obj, max_lines=10):
-        # הגבלת התרגום ל-10 שורות בלבד
+    def recursive_translate(obj):
         if isinstance(obj, dict):
-            return {k: recursive_translate(v, max_lines) for k, v in obj.items()}
+            return {k: recursive_translate(v) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [recursive_translate(item, max_lines) for item in obj[:max_lines]]  # תרגום רק 10 פריטים
+            return [recursive_translate(item) for item in obj]
         else:
             return translate_value(obj)
 
-    # תרגום רק 10 השורות הראשונות
+    # תרגום כל הנתונים
     translated = recursive_translate(data)
 
-    # תיקיית היעד ב-GitHub
-    output_dir = "ParkSmart/.github/workflows"
+    # יצירת תיקיית היעד אם היא לא קיימת
+    output_dir = "ParkSmart/.github/workflows/"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -49,11 +47,14 @@ def translate_json(file, progress=gr.Progress()):
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
+    # אם אתה רוצה לוודא שהקובץ אכן נשמר, תוכל להדפיס את הנתיב שלו
+    print(f"File saved at: {translated_file_path}")
+
     progress(1)  # סיום, 100%
 
     return translated_file_path
 
-# פונקציה ליצירת גרף
+# פונקציה ליצירת גרף (אם נדרש ליצור גרף)
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
     # מקום ליצירת הגרף, לא השתנה
     pass
