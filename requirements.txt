@@ -1,2 +1,5 @@
-gradio
-matplotlib
+gradio==5.24.0
+matplotlib==3.10.1
+numpy==2.2.4
+deep-translator==1.8.0
+pandas==2.2.3
