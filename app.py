@@ -53,8 +53,8 @@ def translate_json(file, progress=gr.Progress()):
 
 # פונקציה ליצירת גרף
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
-    # מקום ליצירת הגרף, לא השתנה
-    pass
+    # יצירת גרף לדוגמה (לפי הצורך שלך)
+    return None  # יש להחליף בקוד יצירת הגרף שלך
 
 # ממשק Gradio
 with gr.Blocks() as demo:
@@ -88,7 +88,7 @@ with gr.Blocks() as demo:
         translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
         if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
             status_message.value = translated_file_path
-            return None  # לא ליצור גרף אם הייתה שגיאה
+            return None, status_message, None  # מחזירים None עבור הגרף והקובץ
         
         status_message.value = "File uploaded and translated successfully!"
         
