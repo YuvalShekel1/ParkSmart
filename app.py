@@ -63,41 +63,51 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    # Add CSS for small file upload button
+    # Add CSS for smaller square button
     gr.HTML("""
         <style>
             #file-upload-btn {
                 font-size: 12px;  /* Small font size */
                 padding: 5px 10px;  /* Smaller padding */
-                height: 30px;  /* Smaller height */
+                height: 40px;  /* Smaller height */
                 width: 150px;  /* Smaller width */
+                border-radius: 5px; /* Rounded corners for square button */
+            }
+            .gradio-container {
+                max-width: 600px; /* Limit the width of the form */
             }
         </style>
     """)
 
-    # Upload JSON button with a small size
+    # File upload button with a square shape and smaller size
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"], elem_id="file-upload-btn")
-    
-    # Radio buttons to select feelings to visualize
+
+    # Disable checkboxes until file is uploaded
     selected_types = gr.Radio(
         ["My Mood", "Parkinson's State", "Physical State"],
         label="Select feelings to visualize",
+        interactive=False,  # Make it disabled initially
     )
 
-    # Radio buttons to select activity to visualize
     selected_activity = gr.Radio(
         ["symptoms", "medicines", "nutritions", "activities"],
         label="Select activity to visualize",
+        interactive=False,  # Make it disabled initially
     )
 
     output_graph = gr.Plot(label="Graph of Mood and Activities")
 
-    def handle_upload(file, types, activity):
+    # Enable checkboxes once the file is uploaded
+    def handle_upload(file, types, activity, state):
+        # Enable the checkboxes once file is uploaded
+        if file:
+            selected_types.update(interactive=True)
+            selected_activity.update(interactive=True)
         data = translate_json(file, types)
         return plot_graph(data, [types], activity)
 
     translate_btn = gr.Button("Generate Visualization")
-    translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity], outputs=[output_graph])
+    translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity, gr.State()], outputs=[output_graph])
 
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
