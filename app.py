@@ -120,7 +120,7 @@ with gr.Blocks() as demo:
             }
 
             /* Style for the "Upload successful" message */
-            #file-upload-msg {
+            .file-upload-msg {
                 font-size: 14px;
                 color: green;
                 margin-top: 10px;
@@ -143,9 +143,9 @@ with gr.Blocks() as demo:
         </style>
     """)
 
-    # Upload file button
+    # File upload input
     file_input = gr.File(label="Upload JSON", file_types=[".json"], elem_id="file-upload-btn")
-    file_message = gr.HTML(id="file-upload-msg")
+    file_message = gr.HTML("<div class='file-upload-msg'>No file uploaded yet.</div>")
 
     # Radio buttons to select feelings to visualize
     selected_types = gr.Radio(
