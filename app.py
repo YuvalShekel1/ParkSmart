@@ -16,9 +16,10 @@ def translate_json(file):
     except Exception as e:
         return f"Error reading file: {str(e)}", None
 
+    # פונקציה שמתרגמת כל ערך
     def translate_value(val):
-        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # If it's Hebrew
-            return GoogleTranslator(source='he', target='en').translate(val)
+        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
+            return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
         return val
 
     def recursive_translate(obj):
@@ -29,6 +30,7 @@ def translate_json(file):
         else:
             return translate_value(obj)
 
+    # תרגום כל הנתונים
     translated = recursive_translate(data)
 
     # Save the translated data to a new file
@@ -70,6 +72,7 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
+    # העלאת קובץ JSON עם כפתור קטן
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"])
 
