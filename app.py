@@ -1,4 +1,3 @@
-
 import gradio as gr
 import json
 import os
@@ -51,4 +50,5 @@ with gr.Blocks() as demo:
     translate_btn = gr.Button("Translate")
     translate_btn.click(fn=handle_translate, inputs=[file_input, selected_types], outputs=[output_json, download_btn])
 
-demo.launch()
+    # Set the app to listen on all IPs and the port provided by Render
+    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
