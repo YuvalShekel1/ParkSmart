@@ -2,10 +2,11 @@ import gradio as gr
 import json
 import os
 from deep_translator import GoogleTranslator
-import shutil
+import requests
+from github import Github
 
 # פונקציה לתרגום הקובץ כולו מעברית לאנגלית
-def translate_json(file, progress=gr.Progress()):
+def translate_json(file):
     if file is None:
         return "No file uploaded", None
 
@@ -20,7 +21,6 @@ def translate_json(file, progress=gr.Progress()):
     def translate_value(val):
         if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
             try:
-                # וידוא שהשפות נכונות — deep_translator מקבלת קודים של שפות
                 return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
             except Exception as e:
                 return f"Error during translation: {str(e)}"
@@ -37,24 +37,31 @@ def translate_json(file, progress=gr.Progress()):
     # תרגום כל הנתונים
     translated = recursive_translate(data)
 
-    # יצירת תיקיית היעד אם היא לא קיימת
-    output_dir = "ParkSmart/.github/workflows/"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # שמירת הקובץ המתורגם
-    translated_file_path = os.path.join(output_dir, "translated_data.json")
+    # יצירת הקובץ המתורגם
+    translated_file_path = "translated_data.json"
     with open(translated_file_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
-    progress(1)  # סיום, 100%
+    # העלאת הקובץ ל-GitHub
+    github_token = "your_github_token"  # הכנס את הטוקן שלך
+    repo_name = "your_github_username/your_repository_name"  # הכנס את שם הרפוזיטורי
+    file_path_in_repo = ".github/workflows/translated_data.json"  # נתיב הקובץ ב-GitHub
+    
+    # אתחול של GitHub API
+    g = Github(github_token)
+    repo = g.get_repo(repo_name)
+    
+    # קריאת הקובץ על מנת להעלות אותו מחדש
+    with open(translated_file_path, "r", encoding="utf-8") as file:
+        content = file.read()
+    
+    # העלאת הקובץ ל-GitHub
+    repo.create_file(file_path_in_repo, "Upload translated file", content)
 
-    return translated_file_path  # מחזיר את הנתיב של הקובץ המתורגם
-
-# פונקציה ליצירת גרף (אם נדרש ליצור גרף)
-def plot_graph(data, selected_types, selected_activity, symbol="☕"):
-    # מקום ליצירת הגרף, לא השתנה
-    pass
+    # יצירת קישור להורדה
+    file_url = f"https://github.com/{repo_name}/blob/main/{file_path_in_repo}"
+    
+    return file_url
 
 # ממשק Gradio
 with gr.Blocks() as demo:
@@ -64,38 +71,12 @@ with gr.Blocks() as demo:
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"])
     
-    # בחירת סוגי "feelings" להצגה
-    selected_types = gr.Radio(
-        ["My Mood", "Parkinson's State", "Physical State"],
-        label="Select feelings to visualize",
-    )
+    # פונקציה להעלאת הקובץ
+    def handle_upload(file):
+        file_url = translate_json(file)  # תרגום הקובץ
+        return gr.HTML(f'<a href="{file_url}" target="_blank">Download Translated File</a>')  # הצגת קישור להורדה
 
-    # בחירת פעילות להצגה
-    selected_activity = gr.Radio(
-        ["symptoms", "medicines", "nutritions", "activities"],
-        label="Select activity to visualize",
-    )
-
-    output_graph = gr.Plot(label="Graph of Mood and Activities")
-    status_message = gr.HTML(label="Status", value="")
-    progress_bar = gr.Progress()  # הסרה של פרמטר label
-
-    # פונקציה להעלאת הקובץ ויצירת גרף
-    def handle_upload(file, types, activity):
-        status_message.value = "Uploading and processing data... Please wait."  # עדכון סטטוס
-        
-        # הצגת בר הטעינה במהלך התרגום
-        translated_file_path = translate_json(file, progress_bar)  # תרגום הקובץ
-        if isinstance(translated_file_path, str):  # אם התשובה היא הודעת שגיאה
-            status_message.value = translated_file_path
-            return None, status_message, None  # להחזיר גם את הודעת השגיאה וגם None במקום גרף
-        
-        status_message.value = "File uploaded and translated successfully!"
-        
-        # הצגת הגרף לאחר התרגום
-        return plot_graph([], [types], activity), status_message, gr.File.update(value=translated_file_path, visible=True)
-
-    translate_btn = gr.Button("Generate Visualization")
-    translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity], outputs=[output_graph, status_message, file_input])
+    translate_btn = gr.Button("Generate Translated File")
+    translate_btn.click(fn=handle_upload, inputs=[file_input], outputs=[gr.HTML()])
 
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
