@@ -34,6 +34,7 @@ def translate_json(file, selected_types):
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
     fig, ax = plt.subplots(figsize=(15, 8))  # Increased size for bigger graph
 
+    # Create an empty graph with just the X and Y axes
     hours = np.arange(0, 24, 1)  # 0-23 hours
     ax.set_xticks(hours)
     ax.set_xticklabels([f"{(i+12)%24}:00" for i in hours], rotation=45)
@@ -45,6 +46,7 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 
     # Plotting empty graph initially if no data exists
     if len(data) == 0:
+        ax.text(12, 3, "No Data Available", ha="center", va="center", fontsize=14, color="gray")  # Show message when no data
         plt.tight_layout()
         return fig
 
@@ -113,8 +115,6 @@ with gr.Blocks() as demo:
     def handle_upload(file, types, activity):
         data, _ = translate_json(file, types)
         # Return the empty graph if no file or data is uploaded
-        if not data:
-            return plot_graph([], types, activity)
         return plot_graph(data, [types], activity)
 
     translate_btn = gr.Button("Generate Visualization")
