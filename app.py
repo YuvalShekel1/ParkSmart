@@ -52,7 +52,7 @@ def translate_json(file, progress=gr.Progress()):
 
     progress(1)  # סיום, 100%
 
-    return translated_file_path
+    return translated_file_path  # מחזיר את הנתיב של הקובץ המתורגם
 
 # פונקציה ליצירת גרף (אם נדרש ליצור גרף)
 def plot_graph(data, selected_types, selected_activity, symbol="☕"):
