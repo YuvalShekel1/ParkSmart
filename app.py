@@ -72,7 +72,7 @@ with gr.Blocks() as demo:
 
     output_graph = gr.Plot(label="Graph of Mood and Activities")
     status_message = gr.HTML(label="Status", value="")
-    progress_bar = gr.Progress(label="Processing File")
+    progress_bar = gr.Progress()  # הסרה של פרמטר label
 
     # פונקציה להעלאת הקובץ ויצירת גרף
     def handle_upload(file, types, activity):
