@@ -63,19 +63,22 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    # Add CSS for small file upload button
+    # Add CSS specifically for the file upload button (without affecting the rest of the page)
     gr.HTML("""
         <style>
+            /* Custom style for the file upload button only */
             #file-upload-btn {
                 font-size: 12px;  /* Small font size */
                 padding: 5px 10px;  /* Smaller padding */
-                height: 30px;  /* Smaller height */
+                height: 40px;  /* Smaller height */
                 width: 150px;  /* Smaller width */
+                border-radius: 5px; /* Rounded corners for square button */
+                margin-bottom: 10px;  /* Optional: Space below the button */
             }
         </style>
     """)
 
-    # Upload JSON button with a small size
+    # Upload JSON button with small size
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"], elem_id="file-upload-btn")
     
