@@ -63,7 +63,7 @@ def plot_graph(data, selected_types, selected_activity, symbol="☕"):
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    # Add CSS for smaller square button
+    # Add CSS for small square upload button (no effect on entire page)
     gr.HTML("""
         <style>
             #file-upload-btn {
@@ -72,9 +72,27 @@ with gr.Blocks() as demo:
                 height: 40px;  /* Smaller height */
                 width: 150px;  /* Smaller width */
                 border-radius: 5px; /* Rounded corners for square button */
+                margin-bottom: 10px;  /* Margin at the bottom */
             }
+
             .gradio-container {
-                max-width: 600px; /* Limit the width of the form */
+                max-width: 800px;  /* Limit the width of the entire form */
+            }
+
+            .disabled {
+                background-color: #d3d3d3;  /* Light gray color for disabled state */
+                color: #a0a0a0;  /* Disabled text color */
+            }
+
+            .active {
+                background-color: white;
+                color: black;
+            }
+
+            #upload-feedback {
+                color: green;
+                font-size: 20px;
+                display: none;
             }
         </style>
     """)
@@ -83,7 +101,10 @@ with gr.Blocks() as demo:
     with gr.Row():
         file_input = gr.File(label="Upload JSON", file_types=[".json"], elem_id="file-upload-btn")
 
-    # Disable checkboxes until file is uploaded
+    # Add a label for the success feedback message
+    upload_feedback = gr.HTML('<div id="upload-feedback">✔️ File Uploaded Successfully!</div>')
+
+    # Disable checkboxes initially
     selected_types = gr.Radio(
         ["My Mood", "Parkinson's State", "Physical State"],
         label="Select feelings to visualize",
@@ -98,16 +119,16 @@ with gr.Blocks() as demo:
 
     output_graph = gr.Plot(label="Graph of Mood and Activities")
 
-    # Enable checkboxes once the file is uploaded
+    # Enable checkboxes and show success feedback after file upload
     def handle_upload(file, types, activity, state):
-        # Enable the checkboxes once file is uploaded
         if file:
             selected_types.update(interactive=True)
             selected_activity.update(interactive=True)
+            upload_feedback.update(value="<div id='upload-feedback'>✔️ File Uploaded Successfully!</div>", visible=True)
         data = translate_json(file, types)
         return plot_graph(data, [types], activity)
 
     translate_btn = gr.Button("Generate Visualization")
-    translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity, gr.State()], outputs=[output_graph])
+    translate_btn.click(fn=handle_upload, inputs=[file_input, selected_types, selected_activity, gr.State()], outputs=[output_graph, upload_feedback])
 
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
