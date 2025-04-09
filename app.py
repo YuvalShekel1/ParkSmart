@@ -43,9 +43,9 @@ def translate_json(file):
         json.dump(translated, f, ensure_ascii=False, indent=4)
 
     # העלאת הקובץ ל-GitHub
-    github_token = "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"  # הכנס את הטוקן שלך
-    repo_name = "your_github_username/your_repository_name"  # הכנס את שם הרפוזיטורי
-    file_path_in_repo = ".github/workflows/translated_data.json"  # נתיב הקובץ ב-GitHub
+    github_token = os.getenv("GITHUB_TOKEN")  # טוקן GitHub מתוך משתנה סביבה
+    repo_name = "YuvalShekel1/ParkSmart"  # שם הרפוזיטורי שלך
+    file_path_in_repo = "files/translated_data.json"  # נתיב הקובץ ב-GitHub
     
     # אתחול של GitHub API
     g = Github(github_token)
