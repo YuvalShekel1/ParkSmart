@@ -30,8 +30,15 @@ def translate_json(file_obj):
         return None
 
     try:
-        # קריאה תקינה של תוכן הקובץ
-        content = file_obj.read().decode('utf-8')
+        # ננסה לקרוא את הקובץ כתוכן טקסטואלי
+        try:
+            # אם יש read(), נשתמש בו (גרסת Gradio)
+            content = file_obj.read().decode('utf-8')
+        except AttributeError:
+            # אם אין read(), נשתמש בשם הקובץ (temp path)
+            with open(file_obj.name, 'r', encoding='utf-8') as f:
+                content = f.read()
+
         json_content = json.loads(content)
 
         def translate_value(value):
@@ -62,6 +69,7 @@ def translate_json(file_obj):
     except Exception as e:
         print(f"Error translating JSON: {str(e)}")
         return None
+
 
 # ממשק Gradio
 with gr.Blocks() as demo:
