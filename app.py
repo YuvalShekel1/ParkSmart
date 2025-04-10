@@ -1,102 +1,36 @@
 import gradio as gr
-import json
-import os
-from deep_translator import GoogleTranslator
-import requests
-from github import Github
 import matplotlib.pyplot as plt
-import numpy as np
 
-# פונקציה לתרגום הקובץ כולו מעברית לאנגלית
-def translate_json(file):
-    if file is None:
-        return "No file uploaded", None
-
-    file_path = file.name
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        return f"Error reading file: {str(e)}", None
-
-    # פונקציה שמתרגמת כל ערך
-    def translate_value(val):
-        if isinstance(val, str) and any("\u0590" <= ch <= "\u05EA" for ch in val):  # אם זה עברית
-            try:
-                return GoogleTranslator(source='he', target='en').translate(val)  # תרגום באמצעות deep_translator
-            except Exception as e:
-                return f"Error during translation: {str(e)}"
-        return val
-
-    def recursive_translate(obj):
-        if isinstance(obj, dict):
-            return {k: recursive_translate(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [recursive_translate(item) for item in obj]
-        else:
-            return translate_value(obj)
-
-    # תרגום כל הנתונים
-    translated = recursive_translate(data)
-
-    # יצירת הקובץ המתורגם
-    translated_file_path = "translated_data.json"
-    with open(translated_file_path, "w", encoding="utf-8") as f:
-        json.dump(translated, f, ensure_ascii=False, indent=4)
-
-    # העלאת הקובץ ל-GitHub
-    github_token = os.getenv("GITHUB_TOKEN")  # טוקן GitHub מתוך משתנה סביבה
-    repo_name = "YuvalShekel1/ParkSmart"  # שם הרפוזיטורי שלך
-    file_path_in_repo = "files/translated_data.json"  # נתיב הקובץ ב-GitHub
-    
-    # אתחול של GitHub API
-    g = Github(github_token)
-    repo = g.get_repo(repo_name)
-    
-    # קריאת הקובץ על מנת להעלות אותו מחדש
-    with open(translated_file_path, "r", encoding="utf-8") as file:
-        content = file.read()
-    
-    # העלאת הקובץ ל-GitHub
-    repo.create_file(file_path_in_repo, "Upload translated file", content)
-
-    # יצירת קישור להורדה
-    file_url = f"https://github.com/{repo_name}/blob/main/{file_path_in_repo}"
-    
-    return file_url
-
-# פונקציה ליצירת גרף עם צירים
+# פונקציה שמציגה גרף בסיסי
 def create_default_graph():
-    x = np.arange(0, 24, 1)  # שעות מ-0 עד 23 (12 בלילה עד 12 בלילה)
-    y = np.zeros_like(x)  # נתונים ריקים לציר Y (ערכים שווים לאפס)
-
-    plt.figure(figsize=(10,6))
-    plt.plot(x, y, label="Mood and Activities")
-    plt.xlabel("Hours of the Day (12 AM to 12 AM)")
-    plt.ylabel("Values (1-5)")
-    plt.title("Graph of Mood and Activities")
-    plt.xticks(np.arange(0, 24, 1), labels=[f"{int(i)}:00" for i in np.arange(0, 24, 1)])
-    plt.yticks(np.arange(1, 6, 1))
-    plt.grid(True)
-    plt.legend()
+    # נתוני גרף
+    x = ['12 AM', '1 AM', '2 AM', '3 AM', '4 AM', '5 AM', '6 AM', '7 AM', '8 AM', '9 AM', '10 AM', '11 AM']
+    y = [1, 2, 3, 4, 5, 4, 3, 2, 1, 2, 3, 4]
     
-    # שמירת הגרף כקובץ תמונה
-    graph_path = "/mnt/data/default_graph.png"
+    # יצירת הגרף
+    plt.plot(x, y)
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.title('Default Graph')
+    
+    # שמירת הגרף בתמונה
+    graph_path = "/mnt/data/default_graph.png"  # יש לשמור כאן את הגרף
     plt.savefig(graph_path)
-    plt.close()
-    return graph_path
+    plt.close()  # סגירת הגרף לאחר שמירתו
+    
+    return graph_path  # מחזיר את הנתיב לקובץ הגרף
 
 # ממשק Gradio
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
-    # הצגת גרף דיפולטי עם צירי X ו-Y
-    default_graph = gr.Image(label="Graph of Mood and Activities", type="file", value=create_default_graph())  # הגרף ייטען אוטומטית
+    # הצגת גרף בסיסי כשהאפליקציה עולה
+    output_graph = gr.Image(label="Default Graph", type="filepath")
+    output_graph.update(value=create_default_graph())  # מציג את הגרף הבסיסי
 
     # העלאת קובץ JSON עם כפתור קטן
-    with gr.Row():
-        file_input = gr.File(label="Upload JSON", file_types=[".json"])
-
+    file_input = gr.File(label="Upload JSON", file_types=[".json"])
+    
     # פונקציה להעלאת הקובץ
     def handle_upload(file):
         file_url = translate_json(file)  # תרגום הקובץ
