@@ -13,24 +13,19 @@ def create_default_graph():
     plt.ylabel('Value')
     plt.title('Default Graph')
     
-    # שמירת הגרף בתמונה
-    graph_path = "/mnt/data/default_graph.png"  # יש לשמור כאן את הגרף
-    plt.savefig(graph_path)
-    plt.close()  # סגירת הגרף לאחר שמירתו
-    
-    return graph_path  # מחזיר את הנתיב לקובץ הגרף
+    # הצגת הגרף בלי לשמור אותו לקובץ
+    plt.show()
 
 # ממשק Gradio
 with gr.Blocks() as demo:
     gr.Markdown("## ParkSmart - Analyze Your Data")
 
     # הצגת גרף בסיסי כשהאפליקציה עולה
-    output_graph = gr.Image(label="Default Graph", type="filepath")
-    output_graph = create_default_graph()  # מציג את הגרף הבסיסי
+    create_default_graph()  # מציג את הגרף הבסיסי
 
     # העלאת קובץ JSON עם כפתור קטן
     file_input = gr.File(label="Upload JSON", file_types=[".json"])
-    
+
     # פונקציה להעלאת הקובץ
     def handle_upload(file):
         file_url = translate_json(file)  # תרגום הקובץ
