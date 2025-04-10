@@ -4,6 +4,7 @@ import os
 import json
 import tempfile
 from deep_translator import GoogleTranslator
+from translatepy import Translator
 
 # פונקציה שמציגה גרף בסיסי
 def create_default_graph():
@@ -41,23 +42,25 @@ def translate_json(file_obj):
 
         json_content = json.loads(content)
 
-        def translate_value(value):
-            if isinstance(value, str):
-                hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
-                if hebrew_chars:
-                    print(f"Translating: {value}")
-                    try:
-                        return GoogleTranslator(source='he', target='en').translate(value)
-                    except Exception as e:
-                        print(f"Translation error for text '{value}': {str(e)}")
-                        return value
+translator = Translator()
+
+def translate_value(value):
+    if isinstance(value, str):
+        hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
+        if hebrew_chars:
+            try:
+                result = translator.translate(value, "English")
+                return result.result
+            except Exception as e:
+                print(f"Translation error: {e}")
                 return value
-            elif isinstance(value, dict):
-                return {k: translate_value(v) for k, v in value.items()}
-            elif isinstance(value, list):
-                return [translate_value(item) for item in value]
-            else:
-                return value
+        return value
+    elif isinstance(value, dict):
+        return {k: translate_value(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [translate_value(item) for item in value]
+    else:
+        return value
 
         translated_json = translate_value(json_content)
 
