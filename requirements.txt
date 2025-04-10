@@ -9,3 +9,5 @@ aiofiles==24.1.0
 jsonschema==4.17.3
 tqdm==4.67.1
 PyGithub==1.56.0  # הוסף כאן את החבילה PyGithub
+translatepy
+
