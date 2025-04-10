@@ -45,6 +45,7 @@ def translate_json(file_obj):
             if isinstance(value, str):
                 hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
                 if hebrew_chars:
+                    print(f"Translating: {value}")
                     try:
                         return GoogleTranslator(source='he', target='en').translate(value)
                     except Exception as e:
