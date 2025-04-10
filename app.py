@@ -4,13 +4,18 @@ import tempfile
 from translatepy import Translator
 
 translator = Translator()
+translation_cache = {}
 
 def translate_value(value):
     if isinstance(value, str):
-        hebrew_chars = any('֐' <= c <= '׿' for c in value)
+        if value in translation_cache:
+            return translation_cache[value]
+
+        hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
         if hebrew_chars:
             try:
                 result = translator.translate(value, "English")
+                translation_cache[value] = result.result
                 return result.result
             except Exception as e:
                 print(f"Translation error for '{value}': {e}")
