@@ -28,22 +28,21 @@ def create_default_graph():
 def translate_json(file_obj):
     if file_obj is None:
         return None
-    
+
     try:
-        # קריאת הקובץ והמרה ל-JSON
-        json_content = json.load(open(file_obj.name, 'r', encoding='utf-8'))
-        
-        # פונקציה פנימית לתרגום שדות רקורסיבית
+        # קריאה תקינה של תוכן הקובץ
+        content = file_obj.read().decode('utf-8')
+        json_content = json.loads(content)
+
         def translate_value(value):
             if isinstance(value, str):
-                # בדיקה אם יש תווים בעברית
                 hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
                 if hebrew_chars:
                     try:
                         return GoogleTranslator(source='he', target='en').translate(value)
                     except Exception as e:
                         print(f"Translation error for text '{value}': {str(e)}")
-                        return value  # במקרה של כישלון, השאר את הטקסט המקורי
+                        return value
                 return value
             elif isinstance(value, dict):
                 return {k: translate_value(v) for k, v in value.items()}
@@ -51,17 +50,15 @@ def translate_json(file_obj):
                 return [translate_value(item) for item in value]
             else:
                 return value
-        
-        # תרגום כל התוכן
+
         translated_json = translate_value(json_content)
-        
-        # שמירת ה-JSON המתורגם לקובץ זמני
+
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_json, f, ensure_ascii=False, indent=2)
-        
+
         return output_path
-        
+
     except Exception as e:
         print(f"Error translating JSON: {str(e)}")
         return None
