@@ -56,4 +56,6 @@ with gr.Blocks() as demo:
     translate_btn.click(translate_json, inputs=file_input, outputs=output_file)
 
 if __name__ == "__main__":
-    demo.launch()
+    import os
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
