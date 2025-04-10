@@ -26,7 +26,7 @@ with gr.Blocks() as demo:
 
     # הצגת גרף בסיסי כשהאפליקציה עולה
     output_graph = gr.Image(label="Default Graph", type="filepath")
-    output_graph.update(value=create_default_graph())  # מציג את הגרף הבסיסי
+    output_graph = create_default_graph()  # מציג את הגרף הבסיסי
 
     # העלאת קובץ JSON עם כפתור קטן
     file_input = gr.File(label="Upload JSON", file_types=[".json"])
