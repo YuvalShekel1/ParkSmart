@@ -1,107 +1,47 @@
 import gradio as gr
 import json
 import tempfile
-from translatepy import Translator
-import openai
 import os
-
-# הגדרת המפתח ל־OpenAI אם רוצים (כדי לעבוד עם השלמות תזונתיות)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+import re
+from datetime import datetime
+from translatepy import Translator
+from openai import OpenAI
+import pandas as pd
 
 translator = Translator()
+openai_client = OpenAI()
 
-# מילון תרגום קבוע
 translation_cache = {
-    "איטי": "Slow",
-    "לא מצליח להתאזן ולהתאמן": "Unable to balance and exercise",
-    "בוקר טוב": "Good morning",
-    "תחושה כללית פחות טובה": "General feeling is less good",
-    "מרגיש מצוין": "Feeling excellent",
-    "איטיות": "Slowness",
-    "טוב": "Good",
-    "התכווצויות בכפות הרגליים למשך 15 דקות": "Foot cramps for 15 minutes",
-    "התכווצויות באצבעות רגל ימין": "Toe cramps in right foot",
-    "התכווצויות בכפות הרגליים": "Foot cramps",
-    "התכווצויות בכפות הרגליים.": "Foot cramps",
-    "אזילקט": "Azilect",
-    "דופיקר": "Dopicar",
-    "דופיקר 125": "Dopicar 125",
-    "דופיקר 175": "Dopicar 175",
-    "דופיקר 250": "Dopicar 250",
-    "הליכה": "Walking",
-    "הרכבת כסאות גינה": "Assembling garden chairs",
-    "חצי פיתה עם חמאת בוטנים": "Half pita with peanut butter",
-    "חצי פיתה עם ריבה": "Half pita with jam",
-    "טאקי": "Taki (card game)",
-    "טורניר טנש": "Tennis tournament",
-    "טנש": "Tennis",
-    "מעדן סויה אפרסק": "Peach soy pudding",
-    "מרק אפונה, כרובית מבושלת": "Pea soup, cooked cauliflower",
-    "מרק ירקות עם פתיתים": "Vegetable soup with ptitim",
-    "נסיעה לבית שאן": "Trip to Beit She'an",
-    "סיור במוזיאון גולני": "Tour in Golani museum",
-    "סינמט": "Cinemat",
-    "סלמון עם פירה ואפונה": "Salmon with mashed potatoes and peas",
-    "עבודת גינה": "Gardening",
-    "עוגת תפוחים": "Apple cake",
-    "פאי אגסים וקפה קטן": "Pear pie and small coffee",
-    "פיתה טחינה מלפפון עגבנייה ושניצל קטן": "Pita with tahini, cucumber, tomato and small schnitzel",
-    "פלפל ומלפפון": "Pepper and cucumber",
-    "פלפל עם קוטג": "Pepper with cottage cheese",
-    "צלחת מרק סלרי": "Bowl of celery soup",
-    "קוצב": "Pacemaker",
-    "קערת קורנפלקס עם חלב סויה וצימוקים": "Bowl of cornflakes with soy milk and raisins",
-    "קערת קורנפלקס עם חלב שקדים וצימוקים": "Bowl of cornflakes with almond milk and raisins",
-    "קפה": "Coffee",
-    "רבע פיתה עם ממרח בוטנים": "Quarter pita with peanut spread",
-    "שקדים טבעיים": "Natural almonds",
-    "תפו\"א מבושלים שעועית ירוקה וקצת קינואה, 50 גרם עוף": "Boiled potatoes, green beans, a bit of quinoa, 50g chicken",
-    "תפו\"א מבושלים, סלט ביצים": "Boiled potatoes, egg salad"
+    "פיתה": "Pita",
+    "חמאת בוטנים": "Peanut butter",
+    # הוספה חלקית – המשיכי להרחיב
 }
 
-# מילון ערכים תזונתיים בסיסי (להרחיב לפי הצורך)
-nutrition_values = {
-    "פיתה": {"proteins": 8, "fats": 2, "carbohydrates": 50, "dietaryFiber": 3},
-    "חמאת בוטנים": {"proteins": 7, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
-    "קפה": {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0},
-    "שקדים טבעיים": {"proteins": 6, "fats": 14, "carbohydrates": 6, "dietaryFiber": 3},
+# מילון ערכים תזונתיים בסיסיים ליחידה אחת של מאכל
+nutrition_dict = {
+    "פיתה": {"proteins": 6, "fats": 1, "carbohydrates": 30, "dietaryFiber": 2},
+    "חמאת בוטנים": {"proteins": 8, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2}
 }
 
-def gpt_nutrition_lookup(food_name):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a nutrition expert."},
-                {"role": "user", "content": f"Give average proteins, fats, carbohydrates and fiber in one portion of {food_name}, numbers only."}
-            ]
-        )
-        text = response['choices'][0]['message']['content']
-        numbers = [float(s) for s in text.split() if s.replace('.', '', 1).isdigit()]
-        if len(numbers) >= 4:
-            return {
-                "proteins": numbers[0],
-                "fats": numbers[1],
-                "carbohydrates": numbers[2],
-                "dietaryFiber": numbers[3]
-            }
-    except Exception as e:
-        print(f"Error from GPT nutrition lookup for '{food_name}': {e}")
-    return {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+def extract_ingredients(text):
+    items = re.split(r'[.,\s]+', text)
+    return [item for item in items if item]
 
-def parse_food(food_text):
-    components = food_text.split()
-    totals = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
-    for word in components:
-        for food_key in nutrition_values.keys():
-            if food_key in word:
-                food_data = nutrition_values.get(food_key, gpt_nutrition_lookup(food_key))
-                multiplier = 1
-                if "חצי" in food_text or "רבע" in food_text:
-                    multiplier = 0.5 if "חצי" in food_text else 0.25
-                for k in totals:
-                    totals[k] += food_data[k] * multiplier
-    return totals
+def get_nutrition_from_text(food_text):
+    ingredients = extract_ingredients(food_text)
+    total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    for item in ingredients:
+        for food in nutrition_dict:
+            if food in item:
+                portion = 1.0
+                if "חצי" in item:
+                    portion = 0.5
+                if "רבע" in item:
+                    portion = 0.25
+                for key in total:
+                    total[key] += nutrition_dict[food][key] * portion
+                break
+    return total
 
 def translate_value(value, key=None):
     if key == "notes":
@@ -115,67 +55,110 @@ def translate_value(value, key=None):
                 result = translator.translate(value, "English")
                 translation_cache[value] = result.result
                 return result.result
-            except Exception as e:
-                print(f"Translation error for '{value}': {e}")
+            except Exception:
                 return value
         return value
     elif isinstance(value, dict):
         return {k: translate_value(v, k) for k, v in value.items()}
     elif isinstance(value, list):
         return [translate_value(item) for item in value]
-    else:
-        return value
+    return value
 
-def enrich_food_data(entry):
-    if "foodName" in entry and "nutritionalValues" in entry:
-        food_nutrition = parse_food(entry["foodName"])
-        entry["nutritionalValues"] = food_nutrition
-    return entry
+def enrich_nutrition(data):
+    for entry in data:
+        if entry.get("type") == "nutrition" and "foodName" in entry:
+            values = get_nutrition_from_text(entry["foodName"])
+            entry["nutritionalValues"] = values
+    return data
 
 def translate_json(file_obj):
     if file_obj is None:
         return None
     try:
-        try:
-            content = file_obj.read().decode('utf-8')
-        except AttributeError:
-            with open(file_obj.name, 'r', encoding='utf-8') as f:
-                content = f.read()
+        content = file_obj.read().decode('utf-8')
         json_content = json.loads(content)
-
-        if isinstance(json_content, list):
-            json_content = [enrich_food_data(entry) for entry in json_content]
-
         translated_json = translate_value(json_content)
-
+        enriched_json = enrich_nutrition(translated_json)
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(translated_json, f, ensure_ascii=False, indent=2)
+            json.dump(enriched_json, f, ensure_ascii=False, indent=2)
         return output_path
     except Exception as e:
         print(f"Error translating JSON: {e}")
         return None
 
-with gr.Blocks(theme=gr.themes.Default(primary_hue="blue", secondary_hue="cyan")) as demo:
-    gr.Markdown("# 🈯 JSON Hebrew to English Translator with Nutrition Update")
-    file_input = gr.File(label="📂 Upload JSON file", file_types=[".json"])
-    output_file = gr.File(label="⬇️ Download Translated File")
+def get_year_month_options(data):
+    dates = []
+    for entry in data:
+        if "dateTaken" in entry:
+            try:
+                dt = datetime.fromisoformat(entry["dateTaken"].replace("Z", ""))
+                dates.append((dt.year, dt.month))
+            except:
+                continue
+    return sorted({f"{y}-{m:02}" for y, m in dates})
+
+def extract_months(file):
+    if file is None:
+        return []
+    content = file.read().decode("utf-8")
+    data = json.loads(content)
+    return gr.update(choices=get_year_month_options(data))
+
+def analyze_month(file, month_year):
+    content = file.read().decode("utf-8")
+    data = json.loads(content)
+    df = pd.DataFrame(data)
+    df["dateTaken"] = pd.to_datetime(df["dateTaken"], errors="coerce")
+    df = df[df["dateTaken"].dt.strftime("%Y-%m") == month_year]
+
+    mood = df[df["type"] == "My Mood"]
+    nutrition = df[df["type"] == "nutrition"]
+
+    if mood.empty or nutrition.empty:
+        return "⚠️ Not enough data for insights."
+
+    mood["date"] = mood["dateTaken"].dt.date
+    nutrition["hour"] = nutrition["dateTaken"].dt.hour
+    nutrition["date"] = nutrition["dateTaken"].dt.date
+
+    morning = nutrition[nutrition["hour"].between(5, 10)]
+    days_with_protein = morning[morning["nutritionalValues"].apply(lambda x: x["proteins"] > 0)]["date"].unique()
+    with_protein = mood[mood["date"].isin(days_with_protein)]["value"].astype(float)
+    without_protein = mood[~mood["date"].isin(days_with_protein)]["value"].astype(float)
+
+    avg_with = with_protein.mean()
+    avg_without = without_protein.mean()
+
+    if pd.isna(avg_with) or pd.isna(avg_without):
+        return "⚠️ Not enough mood data."
+
+    diff = round(avg_with - avg_without, 2)
+    if diff > 0:
+        return f"✔ Eating proteins in the morning improved mood by {diff} points on average."
+    elif diff < 0:
+        return f"✖ Eating proteins in the morning lowered mood by {abs(diff)} points."
+    else:
+        return "➖ No significant mood change related to morning protein intake."
+
+with gr.Blocks(css=".gr-box {padding: 20px;}") as demo:
+    gr.Markdown("### 🈯 Upload JSON for Automatic Translation + Nutrition Analysis")
+    with gr.Row():
+        file_input = gr.File(label="📤 Upload JSON", file_types=[".json"])
+        output_file = gr.File(label="📥 Download Translated File")
 
     file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
-    gr.Markdown("## 🎭 Select Feelings")
-    feelings_selector = gr.CheckboxGroup(
-        choices=["Parkinson's State", "My Mood", "Physical State"],
-        label="Feelings to analyze",
-        value=[]
-    )
+    gr.Markdown("### 🎯 Select Analysis Parameters")
+    feelings_selector = gr.CheckboxGroup(["Parkinson's State", "My Mood", "Physical State"], label="Feelings")
+    types_selector = gr.CheckboxGroup(["medicines", "nutritions", "activities", "symptoms"], label="Data Types")
 
-    gr.Markdown("## 🎯 Select Data Types")
-    types_selector = gr.CheckboxGroup(
-        choices=["medicines", "nutritions", "activities", "symptoms"],
-        label="Data types to include",
-        value=[]
-    )
+    gr.Markdown("### 📊 Monthly Insights")
+    month_dropdown = gr.Dropdown(label="Choose month-year", choices=[])
+    insight_box = gr.Textbox(label="Insights", lines=4)
+
+    file_input.change(fn=extract_months, inputs=file_input, outputs=month_dropdown)
+    month_dropdown.change(fn=analyze_month, inputs=[file_input, month_dropdown], outputs=insight_box)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
