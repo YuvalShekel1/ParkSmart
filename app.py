@@ -107,9 +107,23 @@ with gr.Blocks() as demo:
     gr.Markdown("# 🈯 JSON Hebrew to English Translator")
     file_input = gr.File(label="Upload JSON file", file_types=[".json"])
     output_file = gr.File(label="Download Translated File")
-    translate_btn = gr.Button("Translate")
 
-    translate_btn.click(translate_json, inputs=file_input, outputs=output_file)
+    # When file is uploaded, trigger translation automatically
+    file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
+
+    gr.Markdown("## Select Feelings")
+    feelings_selector = gr.CheckboxGroup(
+        choices=["Parkinson's State", "My Mood", "Physical State"],
+        label="Choose which feelings to analyze",
+        value=[]
+    )
+
+    gr.Markdown("## Select Data Types")
+    types_selector = gr.CheckboxGroup(
+        choices=["medicines", "nutritions", "activities", "symptoms"],
+        label="Choose data types to include in visualization",
+        value=[]
+    )
 
 if __name__ == "__main__":
     import os
