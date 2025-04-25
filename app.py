@@ -1,84 +1,80 @@
 import gradio as gr
 import json
 import tempfile
-import pandas as pd
-from datetime import datetime
-
 from translatepy import Translator
+from datetime import datetime
+import os
+
 translator = Translator()
 
 # מילון תרגום
 translation_cache = {
+    "איטי": "Slow",
+    "לא מצליח להתאזן ולהתאמן": "Unable to balance and exercise",
+    "בוקר טוב": "Good morning",
+    "תחושה כללית פחות טובה": "General feeling is less good",
+    "מרגיש מצוין": "Feeling excellent",
+    "איטיות": "Slowness",
+    "טוב": "Good",
+    "התכווצויות בכפות הרגליים למשך 15 דקות": "Foot cramps for 15 minutes",
+    "התכווצויות באצבעות רגל ימין": "Toe cramps in right foot",
+    "אזילקט": "Azilect",
+    "דופיקר": "Dopicar",
+    "דופיקר 125": "Dopicar 125",
+    "דופיקר 175": "Dopicar 175",
+    "דופיקר 250": "Dopicar 250",
     "קפה": "Coffee",
     "חצי פיתה עם חמאת בוטנים": "Half pita with peanut butter",
+    "פלפל ומלפפון": "Pepper and cucumber",
     "קערת קורנפלקס עם חלב סויה וצימוקים": "Bowl of cornflakes with soy milk and raisins",
-    "תפו\"א מבושלים שעועית ירוקה וקצת קינואה, 50 גרם עוף": "Boiled potatoes, green beans, quinoa, 50g chicken",
-    # המשך מילון...
+    "סלמון עם פירה ואפונה": "Salmon with mashed potatoes and peas",
+    "פיתה טחינה מלפפון עגבנייה ושניצל קטן": "Pita with tahini, cucumber, tomato and schnitzel",
+    # המשך השלמה לפי הצורך
 }
 
-# מילון ערכים תזונתיים (ליחידה אחת)
-nutrition_data = {
-    "פיתה": {"proteins": 6, "fats": 1, "carbohydrates": 30, "dietaryFiber": 2},
-    "חמאת בוטנים": {"proteins": 4, "fats": 8, "carbohydrates": 3, "dietaryFiber": 1},
+# מילון ערכים תזונתיים לפי רכיבים (לא כולל כמויות. רק ערכים ל-100 גרם או מנה שלמה)
+nutrition_db = {
+    "פיתה": {"proteins": 6, "fats": 1.5, "carbohydrates": 33, "dietaryFiber": 1.5},
+    "חמאת בוטנים": {"proteins": 8, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
     "קפה": {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0},
-    "קורנפלקס": {"proteins": 2, "fats": 1, "carbohydrates": 20, "dietaryFiber": 1},
-    "חלב סויה": {"proteins": 3, "fats": 2, "carbohydrates": 4, "dietaryFiber": 1},
-    "צימוקים": {"proteins": 1, "fats": 0, "carbohydrates": 10, "dietaryFiber": 1},
-    "תפוח אדמה": {"proteins": 2, "fats": 0, "carbohydrates": 17, "dietaryFiber": 2},
-    "שעועית ירוקה": {"proteins": 2, "fats": 0, "carbohydrates": 5, "dietaryFiber": 3},
-    "קינואה": {"proteins": 4, "fats": 2, "carbohydrates": 15, "dietaryFiber": 2},
-    "עוף": {"proteins": 15, "fats": 3, "carbohydrates": 0, "dietaryFiber": 0},
-    # המשך...
+    "סלמון": {"proteins": 25, "fats": 14, "carbohydrates": 0, "dietaryFiber": 0},
+    "קורנפלקס": {"proteins": 8, "fats": 1, "carbohydrates": 83, "dietaryFiber": 3},
+    "חלב סויה": {"proteins": 3, "fats": 1.5, "carbohydrates": 2, "dietaryFiber": 0.5},
+    "מלפפון": {"proteins": 0.7, "fats": 0.1, "carbohydrates": 2.5, "dietaryFiber": 0.5},
+    "פלפל": {"proteins": 1, "fats": 0.2, "carbohydrates": 6, "dietaryFiber": 2},
+    "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
+    # המשך השלמה לפי הצורך
 }
 
-def extract_nutrition(food_name):
-    # ניקוי מילים כלליות
-    food_name = food_name.replace("קערת", "").replace("צלחת", "").replace("חצי", "0.5").replace("רבע", "0.25")
-    items = [item.strip() for item in food_name.replace("עם", ",").split(",")]
-    totals = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
-    
-    for item in items:
-        quantity = 1
-        for word in item.split():
-            try:
-                quantity = float(word)
-                item = item.replace(word, "").strip()
-                break
-            except:
-                continue
-        for key in nutrition_data:
-            if key in item:
-                values = nutrition_data[key]
-                for k in totals:
-                    totals[k] += values[k] * quantity
-                break
-    return totals
+def extract_food_nutrition(food_name):
+    # מפצל לפי מילים ומחפש רכיבים תזונתיים מוכרים
+    total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    for key in nutrition_db:
+        if key in food_name:
+            for k in total:
+                total[k] += nutrition_db[key][k]
+    return total
 
 def translate_value(value, key=None):
     if key == "notes":
-        return value
+        return value  # skip notes field
 
     if isinstance(value, str):
         if value in translation_cache:
             return translation_cache[value]
-        if any('\u0590' <= c <= '\u05FF' for c in value):
+
+        hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
+        if hebrew_chars:
             try:
                 result = translator.translate(value, "English")
                 translation_cache[value] = result.result
                 return result.result
-            except:
+            except Exception as e:
+                print(f"Translation error for '{value}': {e}")
                 return value
         return value
     elif isinstance(value, dict):
-        new_dict = {}
-        for k, v in value.items():
-            if k == "nutritionalValues" and "foodName" in value:
-                food = value["foodName"]
-                nutrients = extract_nutrition(food)
-                new_dict[k] = nutrients
-            else:
-                new_dict[k] = translate_value(v, k)
-        return new_dict
+        return {k: translate_value(v, k) for k, v in value.items()}
     elif isinstance(value, list):
         return [translate_value(item) for item in value]
     else:
@@ -86,68 +82,53 @@ def translate_value(value, key=None):
 
 def translate_json(file_obj):
     if file_obj is None:
-        return None, None
+        return None
 
     try:
         content = file_obj.read().decode('utf-8')
-        json_content = json.loads(content)
-        translated_json = translate_value(json_content)
+        json_data = json.loads(content)
 
-        # extract insights
-        df = pd.json_normalize(translated_json)
-        df["dateTaken"] = pd.to_datetime(df.get("dateTaken", pd.NaT))
-        df["month"] = df["dateTaken"].dt.month
-        df["year"] = df["dateTaken"].dt.year
+        # תרגום
+        translated_data = translate_value(json_data)
 
-        insights = []
-        if "nutritionalValues.proteins" in df and "feeling.value" in df:
-            grouped = df.groupby(["year", "month"])
-            for (y, m), group in grouped:
-                morning = group[group["dateTaken"].dt.hour < 12]
-                ate_protein = morning[morning["nutritionalValues.proteins"] > 5]
-                mood_protein = ate_protein["feeling.value"].mean()
-                no_protein = morning[morning["nutritionalValues.proteins"] <= 1]
-                mood_none = no_protein["feeling.value"].mean()
-                if pd.notna(mood_protein) and pd.notna(mood_none):
-                    diff = round(mood_protein - mood_none, 2)
-                    if abs(diff) > 0.3:
-                        insights.append(f"In {m}/{y}, eating proteins in the morning increased mood by {diff}")
+        # עידכון ערכים תזונתיים אם מדובר בפריט תזונה
+        for entry in translated_data:
+            if isinstance(entry, dict) and "foodName" in entry:
+                food_name = entry.get("foodName", "")
+                values = extract_food_nutrition(food_name)
+                entry["nutritionalValues"] = values
 
-        # save translated file
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(translated_json, f, ensure_ascii=False, indent=2)
+            json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
-        return output_path, "\n".join(insights) if insights else "No significant patterns found."
+        return output_path
 
     except Exception as e:
         print(f"Error translating JSON: {e}")
-        return None, "Error during processing"
+        return None
 
 with gr.Blocks() as demo:
-    gr.Markdown("## 🈯 JSON Translator + Nutrition + Insights", elem_id="title")
+    gr.Markdown("### 🈯 JSON Hebrew to English Translator + Nutrition Enhancer")
+    with gr.Row():
+        file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
+        output_file = gr.File(label="⬇️ Download Translated File")
 
-    file_input = gr.File(label="Upload JSON file", file_types=[".json"])
-    output_file = gr.File(label="Download Translated JSON with Nutrition")
-    insights_box = gr.Textbox(label="🧠 Pattern Insights", lines=5)
+    file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
-    gr.Markdown("### Select Feelings")
-    feelings_selector = gr.CheckboxGroup(
-        choices=["Parkinson's State", "My Mood", "Physical State"],
-        label="Choose feelings to analyze",
-        value=[]
-    )
-
-    gr.Markdown("### Select Data Types")
-    types_selector = gr.CheckboxGroup(
-        choices=["medicines", "nutritions", "activities", "symptoms"],
-        label="Choose data types to include",
-        value=[]
-    )
-
-    file_input.change(fn=translate_json, inputs=file_input, outputs=[output_file, insights_box])
+    gr.Markdown("### 📊 Select what to include in analysis")
+    with gr.Row():
+        feelings_selector = gr.CheckboxGroup(
+            choices=["Parkinson's State", "My Mood", "Physical State"],
+            label="🧠 Feelings to Analyze",
+            value=[]
+        )
+        types_selector = gr.CheckboxGroup(
+            choices=["medicines", "nutritions", "activities", "symptoms"],
+            label="📁 Data Types",
+            value=[]
+        )
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 7860))
     demo.launch(server_name="0.0.0.0", server_port=port)
