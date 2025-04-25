@@ -2,10 +2,15 @@ import gradio as gr
 import json
 import tempfile
 from translatepy import Translator
+import openai
+import os
+
+# הגדרת המפתח ל־OpenAI אם רוצים (כדי לעבוד עם השלמות תזונתיות)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 translator = Translator()
 
-# Custom translation cache for Hebrew phrases
+# מילון תרגום קבוע
 translation_cache = {
     "איטי": "Slow",
     "לא מצליח להתאזן ולהתאמן": "Unable to balance and exercise",
@@ -54,14 +59,56 @@ translation_cache = {
     "תפו\"א מבושלים, סלט ביצים": "Boiled potatoes, egg salad"
 }
 
+# מילון ערכים תזונתיים בסיסי (להרחיב לפי הצורך)
+nutrition_values = {
+    "פיתה": {"proteins": 8, "fats": 2, "carbohydrates": 50, "dietaryFiber": 3},
+    "חמאת בוטנים": {"proteins": 7, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
+    "קפה": {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0},
+    "שקדים טבעיים": {"proteins": 6, "fats": 14, "carbohydrates": 6, "dietaryFiber": 3},
+}
+
+def gpt_nutrition_lookup(food_name):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a nutrition expert."},
+                {"role": "user", "content": f"Give average proteins, fats, carbohydrates and fiber in one portion of {food_name}, numbers only."}
+            ]
+        )
+        text = response['choices'][0]['message']['content']
+        numbers = [float(s) for s in text.split() if s.replace('.', '', 1).isdigit()]
+        if len(numbers) >= 4:
+            return {
+                "proteins": numbers[0],
+                "fats": numbers[1],
+                "carbohydrates": numbers[2],
+                "dietaryFiber": numbers[3]
+            }
+    except Exception as e:
+        print(f"Error from GPT nutrition lookup for '{food_name}': {e}")
+    return {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+
+def parse_food(food_text):
+    components = food_text.split()
+    totals = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    for word in components:
+        for food_key in nutrition_values.keys():
+            if food_key in word:
+                food_data = nutrition_values.get(food_key, gpt_nutrition_lookup(food_key))
+                multiplier = 1
+                if "חצי" in food_text or "רבע" in food_text:
+                    multiplier = 0.5 if "חצי" in food_text else 0.25
+                for k in totals:
+                    totals[k] += food_data[k] * multiplier
+    return totals
+
 def translate_value(value, key=None):
     if key == "notes":
-        return value  # skip notes field
-
+        return value
     if isinstance(value, str):
         if value in translation_cache:
             return translation_cache[value]
-
         hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
         if hebrew_chars:
             try:
@@ -79,53 +126,57 @@ def translate_value(value, key=None):
     else:
         return value
 
+def enrich_food_data(entry):
+    if "foodName" in entry and "nutritionalValues" in entry:
+        food_nutrition = parse_food(entry["foodName"])
+        entry["nutritionalValues"] = food_nutrition
+    return entry
+
 def translate_json(file_obj):
     if file_obj is None:
         return None
-
     try:
         try:
             content = file_obj.read().decode('utf-8')
         except AttributeError:
             with open(file_obj.name, 'r', encoding='utf-8') as f:
                 content = f.read()
-
         json_content = json.loads(content)
+
+        if isinstance(json_content, list):
+            json_content = [enrich_food_data(entry) for entry in json_content]
+
         translated_json = translate_value(json_content)
 
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_json, f, ensure_ascii=False, indent=2)
-
         return output_path
-
     except Exception as e:
         print(f"Error translating JSON: {e}")
         return None
 
-with gr.Blocks() as demo:
-    gr.Markdown("# 🈯 JSON Hebrew to English Translator")
-    file_input = gr.File(label="Upload JSON file", file_types=[".json"])
-    output_file = gr.File(label="Download Translated File")
+with gr.Blocks(theme=gr.themes.Default(primary_hue="blue", secondary_hue="cyan")) as demo:
+    gr.Markdown("# 🈯 JSON Hebrew to English Translator with Nutrition Update")
+    file_input = gr.File(label="📂 Upload JSON file", file_types=[".json"])
+    output_file = gr.File(label="⬇️ Download Translated File")
 
-    # When file is uploaded, trigger translation automatically
     file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
-    gr.Markdown("## Select Feelings")
+    gr.Markdown("## 🎭 Select Feelings")
     feelings_selector = gr.CheckboxGroup(
         choices=["Parkinson's State", "My Mood", "Physical State"],
-        label="Choose which feelings to analyze",
+        label="Feelings to analyze",
         value=[]
     )
 
-    gr.Markdown("## Select Data Types")
+    gr.Markdown("## 🎯 Select Data Types")
     types_selector = gr.CheckboxGroup(
         choices=["medicines", "nutritions", "activities", "symptoms"],
-        label="Choose data types to include in visualization",
+        label="Data types to include",
         value=[]
     )
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 7860))
     demo.launch(server_name="0.0.0.0", server_port=port)
