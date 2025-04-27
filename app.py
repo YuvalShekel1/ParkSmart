@@ -45,7 +45,6 @@ nutrition_db = {
     "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
 }
 
-# עיבוד רכיבים תזונתיים
 def extract_food_nutrition(food_name):
     total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
     for key in nutrition_db:
@@ -54,11 +53,9 @@ def extract_food_nutrition(food_name):
                 total[k] += nutrition_db[key][k]
     return total
 
-# תרגום ערכים
 def translate_value(value, key=None):
     if key == "notes":
         return value
-
     if isinstance(value, str):
         if value in translation_cache:
             return translation_cache[value]
@@ -79,15 +76,15 @@ def translate_value(value, key=None):
         return value
 
 translated_data_global = []
+translated_file_path = None
 
 def translate_json(file_obj):
-    global translated_data_global
+    global translated_data_global, translated_file_path
     try:
         content = file_obj.read().decode('utf-8')
         json_data = json.loads(content)
         translated_data = translate_value(json_data)
 
-        # תוספת ערכים תזונתיים
         for entry in translated_data:
             if isinstance(entry, dict) and "foodName" in entry:
                 food_name = entry.get("foodName", "")
@@ -96,14 +93,15 @@ def translate_json(file_obj):
 
         translated_data_global = translated_data
 
-        # שמירת קובץ מתורגם
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
-        return output_path
+
+        translated_file_path = output_path
+        return f"✅ File translated successfully. [Click here to download]({output_path})"
     except Exception as e:
         print("Error:", e)
-        return None
+        return "❌ Error during translation."
 
 def generate_insights(month, mood_field, nutrition_field):
     if not translated_data_global:
@@ -112,7 +110,7 @@ def generate_insights(month, mood_field, nutrition_field):
     df = pd.DataFrame(translated_data_global)
     df["date"] = pd.to_datetime(df["date"], errors='coerce')
     df = df[df["date"].dt.month == int(month)]
-    
+
     df = df.dropna(subset=["date", mood_field, nutrition_field])
     df["hour"] = df["date"].dt.hour
     df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
@@ -123,7 +121,7 @@ def generate_insights(month, mood_field, nutrition_field):
     for time in group.index:
         mood_avg = round(group.loc[time][mood_field], 2)
         nut_avg = round(group.loc[time][nutrition_field], 2)
-        insights += f"- בזמן {time}: מצב רוח ממוצע = {mood_avg}, ערך תזונתי ממוצע ({nutrition_field}) = {nut_avg}\n"
+        insights += f"- During {time}: Mood avg = {mood_avg}, Nutrition avg ({nutrition_field}) = {nut_avg}\n"
 
     return insights if insights else "No insights found for selected data."
 
@@ -132,8 +130,9 @@ with gr.Blocks() as demo:
 
     with gr.Row():
         file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
-        output_file = gr.File(label="⬇️ Download Translated File")
-    file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
+    download_link = gr.Markdown("⬇️ Download will appear here after upload.")
+
+    file_input.change(fn=translate_json, inputs=file_input, outputs=download_link)
 
     gr.Markdown("---")
     gr.Markdown("### 📅 Select Month and Data Types for Insights")
