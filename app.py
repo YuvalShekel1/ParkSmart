@@ -111,7 +111,6 @@ def generate_insights(year, month, mood_field, nutrition_field):
     df = pd.DataFrame(translated_data_global)
     df["date"] = pd.to_datetime(df["date"], errors='coerce')
     
-    # פילטר לפי חודש ושנה
     df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
 
     df = df.dropna(subset=["date", mood_field, nutrition_field])
@@ -124,7 +123,7 @@ def generate_insights(year, month, mood_field, nutrition_field):
     for time in group.index:
         mood_avg = round(group.loc[time][mood_field], 2)
         nut_avg = round(group.loc[time][nutrition_field], 2)
-        insights += f"- During {time}: Mood avg = {mood_avg}, Nutrition avg ({nutrition_field}) = {nut_avg}\n"
+        insights += f"- During {time}: Mood avg = {mood_avg}, {nutrition_field} avg = {nut_avg}\n"
 
     return insights if insights else "No insights found for selected data."
 
@@ -142,15 +141,22 @@ with gr.Blocks() as demo:
     gr.Markdown("## 📅 Analyze Mood and Nutrition by Year and Month")
 
     with gr.Row():
-        year_selector = gr.Dropdown(choices=[str(i) for i in range(2000, 2050)], label="Select Year")
+        year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year")
         month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
         mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
-        nutrition_dropdown = gr.Dropdown(choices=["proteins", "fats", "carbohydrates", "dietaryFiber"], label="Select Nutrition Field")
+        nutrition_dropdown = gr.Dropdown(
+            choices=["nutrition", "physical activity", "sleep", "medications"],
+            label="Select Data Category"
+        )
 
     insights_output = gr.Textbox(label="📌 Insights", lines=8)
     analyze_btn = gr.Button("🔍 Generate Insights")
 
-    analyze_btn.click(fn=generate_insights, inputs=[year_selector, month_selector, mood_dropdown, nutrition_dropdown], outputs=insights_output)
+    analyze_btn.click(
+        fn=generate_insights,
+        inputs=[year_selector, month_selector, mood_dropdown, nutrition_dropdown],
+        outputs=insights_output
+    )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
