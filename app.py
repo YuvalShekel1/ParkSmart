@@ -2,6 +2,7 @@ import gradio as gr
 import json
 import tempfile
 from translatepy import Translator
+from datetime import datetime
 import os
 import pandas as pd
 
@@ -94,14 +95,11 @@ def translate_json(file_obj):
 
         translated_data_global = translated_data
 
-        # שמירת הקובץ המתורגם
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
-        # החזרת הקובץ להורדה
         return output_path
-
     except Exception as e:
         print("Error:", e)
         return None
@@ -134,7 +132,7 @@ with gr.Blocks() as demo:
 
     with gr.Row():
         file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
-        output_file = gr.File(label="⬇️ Download the updated file", visible=False)
+        output_file = gr.File(label="⬇️ Download the updated file")
 
     file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
