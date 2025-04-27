@@ -100,12 +100,12 @@ def translate_json(file_obj):
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
-        # החזרת הנתיב לקובץ להורדה
-        return gr.File.update(value=output_path, visible=True)
+        # החזרת הקובץ להורדה
+        return gr.File(value=output_path, label="⬇️ Download the updated file", visible=True)
 
     except Exception as e:
         print("Error:", e)
-        return gr.File.update(value=None, visible=False)
+        return gr.File(value=None, visible=False)
 
 def generate_insights(month, mood_field, nutrition_field):
     if not translated_data_global:
