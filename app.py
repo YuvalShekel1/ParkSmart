@@ -104,13 +104,15 @@ def translate_json(file_obj):
         print("Error:", e)
         return None
 
-def generate_insights(month, mood_field, nutrition_field):
+def generate_insights(year, month, mood_field, nutrition_field):
     if not translated_data_global:
         return "Please upload a file first."
 
     df = pd.DataFrame(translated_data_global)
     df["date"] = pd.to_datetime(df["date"], errors='coerce')
-    df = df[df["date"].dt.month == int(month)]
+    
+    # פילטר לפי חודש ושנה
+    df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
 
     df = df.dropna(subset=["date", mood_field, nutrition_field])
     df["hour"] = df["date"].dt.hour
@@ -137,9 +139,10 @@ with gr.Blocks() as demo:
     file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
     gr.Markdown("---")
-    gr.Markdown("## 📅 Analyze Mood and Nutrition by Month")
+    gr.Markdown("## 📅 Analyze Mood and Nutrition by Year and Month")
 
     with gr.Row():
+        year_selector = gr.Dropdown(choices=[str(i) for i in range(2000, 2050)], label="Select Year")
         month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
         mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
         nutrition_dropdown = gr.Dropdown(choices=["proteins", "fats", "carbohydrates", "dietaryFiber"], label="Select Nutrition Field")
@@ -147,7 +150,7 @@ with gr.Blocks() as demo:
     insights_output = gr.Textbox(label="📌 Insights", lines=8)
     analyze_btn = gr.Button("🔍 Generate Insights")
 
-    analyze_btn.click(fn=generate_insights, inputs=[month_selector, mood_dropdown, nutrition_dropdown], outputs=insights_output)
+    analyze_btn.click(fn=generate_insights, inputs=[year_selector, month_selector, mood_dropdown, nutrition_dropdown], outputs=insights_output)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
