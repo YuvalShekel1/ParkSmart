@@ -2,7 +2,6 @@ import gradio as gr
 import json
 import tempfile
 from translatepy import Translator
-from datetime import datetime
 import os
 import pandas as pd
 
@@ -101,11 +100,11 @@ def translate_json(file_obj):
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
         # החזרת הקובץ להורדה
-        return gr.File(value=output_path, label="⬇️ Download the updated file", visible=True)
+        return output_path
 
     except Exception as e:
         print("Error:", e)
-        return gr.File(value=None, visible=False)
+        return None
 
 def generate_insights(month, mood_field, nutrition_field):
     if not translated_data_global:
