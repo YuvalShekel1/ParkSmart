@@ -96,6 +96,7 @@ def translate_json(file_obj):
 
         translated_data_global = translated_data
 
+        # שמירת קובץ מתורגם
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
