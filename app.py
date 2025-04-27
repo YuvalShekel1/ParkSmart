@@ -141,8 +141,8 @@ with gr.Blocks() as demo:
     gr.Markdown("## 📅 Analyze Mood and Nutrition by Year and Month")
 
     with gr.Row():
-        year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year")
         month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
+        year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year")
         mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
         nutrition_dropdown = gr.Dropdown(
             choices=["nutrition", "physical activity", "sleep", "medications"],
