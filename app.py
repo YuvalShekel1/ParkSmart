@@ -45,6 +45,7 @@ nutrition_db = {
     "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
 }
 
+# עיבוד רכיבים תזונתיים
 def extract_food_nutrition(food_name):
     total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
     for key in nutrition_db:
@@ -53,6 +54,7 @@ def extract_food_nutrition(food_name):
                 total[k] += nutrition_db[key][k]
     return total
 
+# תרגום ערכים
 def translate_value(value, key=None):
     if key == "notes":
         return value
@@ -76,15 +78,15 @@ def translate_value(value, key=None):
         return value
 
 translated_data_global = []
-translated_file_path = None
 
 def translate_json(file_obj):
-    global translated_data_global, translated_file_path
+    global translated_data_global
     try:
         content = file_obj.read().decode('utf-8')
         json_data = json.loads(content)
         translated_data = translate_value(json_data)
 
+        # עידכון ערכים תזונתיים
         for entry in translated_data:
             if isinstance(entry, dict) and "foodName" in entry:
                 food_name = entry.get("foodName", "")
@@ -97,11 +99,10 @@ def translate_json(file_obj):
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
-        translated_file_path = output_path
-        return f"✅ File translated successfully. [Click here to download]({output_path})"
+        return output_path
     except Exception as e:
         print("Error:", e)
-        return "❌ Error during translation."
+        return None
 
 def generate_insights(month, mood_field, nutrition_field):
     if not translated_data_global:
@@ -125,25 +126,26 @@ def generate_insights(month, mood_field, nutrition_field):
 
     return insights if insights else "No insights found for selected data."
 
+# ממשק גרפי
 with gr.Blocks() as demo:
-    gr.Markdown("### 🈯 JSON Hebrew to English Translator + Nutrition Enhancer")
+    gr.Markdown("## 🈯 JSON Translator + Nutrition Updater")
 
     with gr.Row():
         file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
-    download_link = gr.Markdown("⬇️ Download will appear here after upload.")
+        output_file = gr.File(label="⬇️ Download the updated file")
 
-    file_input.change(fn=translate_json, inputs=file_input, outputs=download_link)
+    file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
     gr.Markdown("---")
-    gr.Markdown("### 📅 Select Month and Data Types for Insights")
+    gr.Markdown("## 📅 Analyze Mood and Nutrition by Month")
 
     with gr.Row():
         month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
         mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
         nutrition_dropdown = gr.Dropdown(choices=["proteins", "fats", "carbohydrates", "dietaryFiber"], label="Select Nutrition Field")
 
-    insights_output = gr.Textbox(label="📌 Insights", lines=6)
-    analyze_btn = gr.Button("Generate Insights")
+    insights_output = gr.Textbox(label="📌 Insights", lines=8)
+    analyze_btn = gr.Button("🔍 Generate Insights")
 
     analyze_btn.click(fn=generate_insights, inputs=[month_selector, mood_dropdown, nutrition_dropdown], outputs=insights_output)
 
