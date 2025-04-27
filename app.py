@@ -95,14 +95,17 @@ def translate_json(file_obj):
 
         translated_data_global = translated_data
 
+        # שמירת הקובץ המתורגם
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
-        return output_path
+        # החזרת הנתיב לקובץ להורדה
+        return gr.File.update(value=output_path, visible=True)
+
     except Exception as e:
         print("Error:", e)
-        return None
+        return gr.File.update(value=None, visible=False)
 
 def generate_insights(month, mood_field, nutrition_field):
     if not translated_data_global:
@@ -132,7 +135,7 @@ with gr.Blocks() as demo:
 
     with gr.Row():
         file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
-        output_file = gr.File(label="⬇️ Download the updated file")
+        output_file = gr.File(label="⬇️ Download the updated file", visible=False)
 
     file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
 
