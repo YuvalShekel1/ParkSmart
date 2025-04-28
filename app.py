@@ -47,23 +47,16 @@ nutrition_db = {
     "עגבנייה": {"proteins": 0.9, "fats": 0.2, "carbohydrates": 3.9, "dietaryFiber": 1.2},
     "פירה": {"proteins": 2, "fats": 0.1, "carbohydrates": 15, "dietaryFiber": 1.5},
     "אפונה": {"proteins": 5, "fats": 0.4, "carbohydrates": 14, "dietaryFiber": 5},
-}
-
-# תוספת מאכלים מורכבים
-nutrition_db.update({
     "Bowl of cornflakes with soy milk and raisins": {"proteins": 10.8, "fats": 3.2, "carbohydrates": 105, "dietaryFiber": 4.3},
     "Half pita with peanut butter": {"proteins": 11, "fats": 16.75, "carbohydrates": 22.5, "dietaryFiber": 2.75},
-    "Quarter pita with peanut spread": {"proteins": 9.5, "fats": 16.38, "carbohydrates": 14.25, "dietaryFiber": 2.38},
     "Salmon with mashed potatoes and peas": {"proteins": 32, "fats": 14.5, "carbohydrates": 29, "dietaryFiber": 6.5},
     "Pita with tahini, cucumber, tomato and schnitzel": {"proteins": 33.6, "fats": 27.8, "carbohydrates": 49.4, "dietaryFiber": 5.2},
-})
+}
 
-translated_data_global = []
+translated_data_global = {}
 
 def extract_food_nutrition(food_name):
-    if food_name in nutrition_db:
-        return nutrition_db[food_name]
-    return {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    return nutrition_db.get(food_name, {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0})
 
 def translate_value(value, key=None):
     if key == "notes":
@@ -94,22 +87,21 @@ def upload_and_process(file_obj):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         data = json.loads(content)
-        if isinstance(data, dict) and "nutritions" in data:
-            data = data["nutritions"]
-        if not isinstance(data, list):
-            data = [data]
-        
-        for entry in data:
-            if isinstance(entry, dict) and "foodName" in entry:
-                food_name = entry.get("foodName", "")
-                entry["nutritionalValues"] = extract_food_nutrition(food_name)
-        
+
+        # נתרגם הכל
         translated = translate_value(data)
+
+        # נטפל בערכים של nutritions
+        if isinstance(translated, dict) and "nutritions" in translated:
+            for entry in translated["nutritions"]:
+                if "foodName" in entry:
+                    entry["nutritionalValues"] = extract_food_nutrition(entry["foodName"])
+
         translated_data_global = translated
-        
+
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(translated, f, ensure_ascii=False, indent=2)
+            json.dump(translated, f, ensure_ascii=False)
         return output_path, "✅ Translation and nutrition update complete."
     except Exception as e:
         return None, f"❌ Error: {str(e)}"
@@ -118,7 +110,7 @@ def generate_insights(year, month, mood_field, nutrition_field):
     if not translated_data_global:
         return "Please upload a file first."
     try:
-        df = pd.DataFrame(translated_data_global)
+        df = pd.DataFrame(translated_data_global.get("feelings", []))
         df["date"] = pd.to_datetime(df.get("dateTaken", df.get("createdAt", df.get("date"))), errors='coerce')
         df = df[(df["date"].dt.year == int(year)) & (df["date"].dt.month == int(month))]
         
