@@ -45,7 +45,6 @@ nutrition_db = {
     "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
 }
 
-# עיבוד רכיבים תזונתיים
 def extract_food_nutrition(food_name):
     total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
     for key in nutrition_db:
@@ -54,7 +53,6 @@ def extract_food_nutrition(food_name):
                 total[k] += nutrition_db[key][k]
     return total
 
-# תרגום ערכים
 def translate_value(value, key=None):
     if key == "notes":
         return value
