@@ -141,7 +141,7 @@ def translate_value(value, key=None):
     elif isinstance(value, dict):
         return {k: translate_value(v, k) for k, v in value.items()}
     elif isinstance(value, list):
-        return [translate_value(item) for item in value]
+        return [translate_value(item) for item in item]
     else:
         return value
 
@@ -156,65 +156,68 @@ def process_json_file(file_path):
         
         # Try to parse as a complete JSON object first
         try:
+            # Parse the entire JSON content
             json_data = json.loads(content)
             
-            # Check if it's a dictionary with a "nutritions" key
+            # Determine structure and identify the nutrition data
             if isinstance(json_data, dict) and "nutritions" in json_data:
-                data_to_process = json_data["nutritions"]
+                # Case 1: JSON object with nutrition array inside
+                nutritions_data = json_data["nutritions"]
+                is_nested = True
             else:
-                # Otherwise assume it's a direct array or use the whole object
-                data_to_process = json_data if isinstance(json_data, list) else [json_data]
+                # Case 2: Direct array or object without nesting
+                nutritions_data = json_data if isinstance(json_data, list) else [json_data]
+                is_nested = False
                 
         except json.JSONDecodeError:
-            # If that fails, try to parse as a fragment - add brackets and try again
+            # Try to parse as fragment by wrapping appropriately
             try:
                 content = content.strip()
-                # Check if content starts with a key name and colon
                 if content.lstrip().startswith('"') and ':' in content:
-                    # Wrap in curly braces to make it a valid JSON object
+                    # Wrap as object
                     modified_content = '{' + content + '}'
                     json_data = json.loads(modified_content)
-                    # Extract the data - assuming it's in a nutritions array
-                    data_to_process = json_data.get("nutritions", [])
+                    nutritions_data = json_data.get("nutritions", [])
+                    is_nested = "nutritions" in json_data
                 else:
-                    # Wrap in square brackets to make it a valid JSON array
+                    # Wrap as array
                     modified_content = '[' + content + ']'
-                    data_to_process = json.loads(modified_content)
+                    json_data = json.loads(modified_content)
+                    nutritions_data = json_data
+                    is_nested = False
             except json.JSONDecodeError:
                 return False, None, "Invalid JSON format. Please check your file."
         
-        # Store original data for reference
-        original_data = data_to_process.copy()
-        
-        # Process each entry to update nutritional values before translation
-        for i, entry in enumerate(original_data):
-            if isinstance(entry, dict):
-                if "foodName" in entry:
-                    # Extract the Hebrew food name
+        # Process nutritional values in the nutrition data
+        if isinstance(nutritions_data, list):
+            for entry in nutritions_data:
+                if isinstance(entry, dict) and "foodName" in entry:
+                    # Get the Hebrew food name
                     hebrew_food_name = entry["foodName"]
                     
                     # Get accurate nutritional values
                     nutritional_values = extract_food_nutrition(hebrew_food_name)
                     
-                    # Update the nutritionalValues in the original data
-                    if "nutritionalValues" in entry:
-                        entry["nutritionalValues"] = nutritional_values
-                    else:
-                        entry["nutritionalValues"] = nutritional_values
+                    # Update the nutritionalValues
+                    entry["nutritionalValues"] = nutritional_values
         
-        # Now translate the updated data
-        translated_data = translate_value(original_data)
+        # Translate the entire JSON structure
+        translated_full = translate_value(json_data)
         
-        # Store the translated data globally
-        translated_data_global = translated_data
+        # Save the nutrition data separately for analysis
+        if is_nested and "nutritions" in translated_full and isinstance(translated_full["nutritions"], list):
+            translated_data_global = translated_full["nutritions"]
+        else:
+            translated_data_global = translated_full if isinstance(translated_full, list) else [translated_full]
         
         # Save to a temporary file
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(translated_data, f, ensure_ascii=False, indent=2)
+            json.dump(translated_full, f, ensure_ascii=False, indent=2)
         
         # Return status and file path
-        return True, output_path, f"Processing complete! Found {len(translated_data)} entries. Nutritional values updated automatically based on food names."
+        nutrition_count = len(nutritions_data) if isinstance(nutritions_data, list) else 1
+        return True, output_path, f"Processing complete! Found {nutrition_count} nutrition entries. The entire file has been translated and nutritional values have been updated."
     
     except Exception as e:
         print(f"Error processing JSON file: {e}")
