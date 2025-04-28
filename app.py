@@ -48,7 +48,7 @@ nutrition_db = {
     "טחינה": {"proteins": 17, "fats": 57, "carbohydrates": 10, "dietaryFiber": 10},
 }
 
-translated_data_global = []
+translated_data_global = {}
 original_full_json = {}
 
 def translate_value(value, key=None):
@@ -88,9 +88,8 @@ def upload_and_process(file_obj):
         
         original_full_json = json.loads(content)
 
-        # נניח שבקובץ יש שדה 'nutritions' או 'activities' או 'medications' וכו'
-        keys_to_update = ["nutritions", "activities", "medications"]
-        
+        keys_to_update = ["nutritions", "activities", "medications", "symptoms"]
+
         for key in keys_to_update:
             if key in original_full_json:
                 section = original_full_json[key]
@@ -99,13 +98,11 @@ def upload_and_process(file_obj):
                         if isinstance(item, dict) and "foodName" in item:
                             food_name = item["foodName"]
                             item["nutritionalValues"] = extract_food_nutrition(food_name)
-                
-                # Translate the section
+
                 original_full_json[key] = translate_value(section)
 
         translated_data_global = original_full_json
 
-        # Save translated full JSON
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data_global, f, ensure_ascii=False, indent=2)
@@ -115,60 +112,63 @@ def upload_and_process(file_obj):
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
-def generate_insights(year, month, mood_field, nutrition_field):
+def generate_insights(year, month, mood_field, selected_category):
     if not translated_data_global:
         return "Please upload a file first."
 
     try:
-        df = pd.DataFrame(translated_data_global.get("nutritions", []))
+        section = translated_data_global.get(selected_category, [])
+        if not section:
+            return f"No {selected_category} data found."
 
+        df = pd.DataFrame(section)
         if df.empty:
-            return "No nutrition data found."
+            return f"No {selected_category} data available."
+
+        if "date" not in df.columns:
+            return "No date field found."
 
         df["date"] = pd.to_datetime(df["date"], errors='coerce')
         df = df[(df["date"].dt.year == int(year)) & (df["date"].dt.month == int(month))]
 
         if df.empty:
-            return "No data for selected month and year."
+            return "No data for selected year and month."
 
-        if nutrition_field not in df.columns:
-            return f"Field {nutrition_field} not found."
-
-        insights = f"Data analysis for {month}/{year}\n"
-        insights += f"Average {mood_field}: {df[mood_field].mean()}\n"
-        insights += f"Average {nutrition_field}: {df[nutrition_field].mean()}\n"
+        insights = f"📅 Data analysis for {selected_category} in {month}/{year}\n"
+        if mood_field in df.columns:
+            insights += f"Average {mood_field}: {round(df[mood_field].mean(), 2)}\n"
+        else:
+            insights += f"No mood field '{mood_field}' found.\n"
 
         return insights
 
     except Exception as e:
-        return f"Error generating insights: {str(e)}"
+        return f"❌ Error generating insights: {str(e)}"
 
+# Gradio Interface
 with gr.Blocks() as demo:
-    gr.Markdown("## 🈯 JSON Translator + Full Data Nutrition Update")
+    gr.Markdown("## 🈯 JSON Translator + Full Nutrition Update")
 
     with gr.Row():
         file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
         output_file = gr.File(label="⬇️ Download updated JSON")
-
     file_input.change(fn=upload_and_process, inputs=file_input, outputs=[output_file, gr.Textbox(interactive=False)])
 
     gr.Markdown("---")
-    gr.Markdown("## 📅 Analyze Mood and Nutrition")
+    gr.Markdown("## 📅 Analyze by Category")
 
     with gr.Row():
         year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year")
         month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
+    
+    with gr.Row():
         mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
-        nutrition_dropdown = gr.Dropdown(choices=["proteins", "fats", "carbohydrates", "dietaryFiber"], label="Select Nutrition Field")
+        category_dropdown = gr.Dropdown(choices=["symptoms", "medicines", "nutritions", "activities"], label="Select Data Category")
 
     insights_output = gr.Textbox(label="📌 Insights", lines=8)
     analyze_btn = gr.Button("🔍 Generate Insights")
 
-    analyze_btn.click(
-        fn=generate_insights,
-        inputs=[year_selector, month_selector, mood_dropdown, nutrition_dropdown],
-        outputs=insights_output
-    )
+    analyze_btn.click(fn=generate_insights, inputs=[year_selector, month_selector, mood_dropdown, category_dropdown], outputs=insights_output)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
