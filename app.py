@@ -190,7 +190,7 @@ def translate_value(value, key=None):
     elif isinstance(value, dict):
         return {k: translate_value(v, k) for k, v in value.items()}
     elif isinstance(value, list):
-        return [translate_value(item) for item in item]
+        return [translate_value(item) for item in value]  # Fixed: changed "item" to "value"
     else:
         return value
 
