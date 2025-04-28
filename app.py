@@ -209,7 +209,13 @@ def upload_and_process(file_obj):
             content = f.read()
 
         original_full_json = json.loads(content)
-
+        
+        # Convert date fields to standard format if they exist
+        if "nutritions" in original_full_json:
+            for item in original_full_json["nutritions"]:
+                if "dateTaken" in item:
+                    item["date"] = item["dateTaken"]
+        
         keys_to_update = ["nutritions", "activities", "medications", "symptoms"]
 
         for key in keys_to_update:
@@ -218,14 +224,12 @@ def upload_and_process(file_obj):
                 if isinstance(section, list):
                     for item in section:
                         if isinstance(item, dict):
-                            # אם אין 'date' אבל יש 'dateTaken' - ניצור אותו
-                            if "date" not in item and "dateTaken" in item:
-                                item["date"] = item["dateTaken"]
-                            # תוספת ערכים תזונתיים
+                            # Update nutritional values for food items
                             if key == "nutritions" and "foodName" in item:
                                 food_name = item["foodName"]
                                 item["nutritionalValues"] = extract_food_nutrition(food_name)
-                # תרגום אחרי שהוספנו date
+                
+                # Translate the section
                 original_full_json[key] = translate_value(section)
 
         translated_data_global = original_full_json
@@ -238,66 +242,54 @@ def upload_and_process(file_obj):
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
-
 def generate_insights(year, month, mood_field, selected_category):
     if not translated_data_global:
         return "Please upload a file first."
     try:
         mood_data = []
         category_data = []
-
+        
         # Find mood data (assuming it's in symptoms)
         if "symptoms" in translated_data_global:
             for item in translated_data_global["symptoms"]:
-                # הוספת date אם לא קיים
-                if "date" not in item and "dateTaken" in item:
-                    item["date"] = item["dateTaken"]
                 if "date" in item and mood_field in item:
-                    try:
-                        date = pd.to_datetime(item["date"])
-                        if date.year == int(year) and date.month == int(month):
-                            mood_data.append({
-                                "date": date,
-                                "value": item.get(mood_field, 0)
-                            })
-                    except:
-                        continue
-
+                    date = pd.to_datetime(item["date"])
+                    if date.year == int(year) and date.month == int(month):
+                        mood_data.append({
+                            "date": date,
+                            "value": item.get(mood_field, 0)
+                        })
+        
         # Get category data
         if selected_category in translated_data_global:
             for item in translated_data_global[selected_category]:
-                # הוספת date אם לא קיים
-                if "date" not in item and "dateTaken" in item:
-                    item["date"] = item["dateTaken"]
-
                 date = None
                 if "date" in item:
-                    try:
-                        date = pd.to_datetime(item["date"])
-                    except:
-                        date = None
-
+                    date = pd.to_datetime(item["date"])
+                elif "dateTaken" in item:
+                    date = pd.to_datetime(item["dateTaken"])
+                
                 if date and date.year == int(year) and date.month == int(month):
                     category_data.append({
                         "date": date,
                         "item": item
                     })
-
+        
         if not mood_data or not category_data:
             return f"No sufficient data for the selected period ({month}/{year}) or categories."
-
+        
         # Create DataFrames
         mood_df = pd.DataFrame(mood_data)
         category_df = pd.DataFrame(category_data)
-
+        
         # Generate insights based on the category
         insights = f"📊 Analysis for {selected_category} in {month}/{year}:\n\n"
-
+        
         # Basic stats
         insights += f"Found {len(mood_data)} mood entries and {len(category_data)} {selected_category} entries.\n"
         if mood_df["value"].any():
             insights += f"Average {mood_field}: {round(mood_df['value'].mean(), 2)}\n\n"
-
+        
         # Category-specific insights
         if selected_category == "nutritions":
             insights += generate_nutrition_insights(category_df, mood_df)
@@ -307,7 +299,7 @@ def generate_insights(year, month, mood_field, selected_category):
             insights += generate_medication_insights(category_df, mood_df)
         else:
             insights += generate_symptom_insights(category_df, mood_df)
-
+        
         return insights
     except Exception as e:
         return f"❌ Error generating insights: {str(e)}"
