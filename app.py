@@ -190,7 +190,7 @@ def translate_value(value, key=None):
     elif isinstance(value, dict):
         return {k: translate_value(v, k) for k, v in value.items()}
     elif isinstance(value, list):
-        return [translate_value(item) for item in value]  # Fixed: changed "item" to "value"
+        return [translate_value(item) for item in item]  # Fixed: changed "item" to "value"
     else:
         return value
 
@@ -210,20 +210,20 @@ def upload_and_process(file_obj):
 
         original_full_json = json.loads(content)
         
-        # Convert date fields to standard format if they exist
-        if "nutritions" in original_full_json:
-            for item in original_full_json["nutritions"]:
-                if "dateTaken" in item:
-                    item["date"] = item["dateTaken"]
-        
+        # Convert dateTaken fields to data across all sections
         keys_to_update = ["nutritions", "activities", "medications", "symptoms"]
-
+        
         for key in keys_to_update:
             if key in original_full_json:
                 section = original_full_json[key]
                 if isinstance(section, list):
                     for item in section:
                         if isinstance(item, dict):
+                            # Change dateTaken to data
+                            if "dateTaken" in item:
+                                item["data"] = item["dateTaken"]
+                                del item["dateTaken"]
+                            
                             # Update nutritional values for food items
                             if key == "nutritions" and "foodName" in item:
                                 food_name = item["foodName"]
@@ -238,7 +238,7 @@ def upload_and_process(file_obj):
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data_global, f, ensure_ascii=False, indent=2)
 
-        return output_path, "✅ File processed successfully! All nutritional values have been updated."
+        return output_path, "✅ File processed successfully! All nutritional values have been updated and dateTaken fields changed to data."
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
@@ -252,8 +252,8 @@ def generate_insights(year, month, mood_field, selected_category):
         # Find mood data (assuming it's in symptoms)
         if "symptoms" in translated_data_global:
             for item in translated_data_global["symptoms"]:
-                if "date" in item and mood_field in item:
-                    date = pd.to_datetime(item["date"])
+                if "data" in item and mood_field in item:
+                    date = pd.to_datetime(item["data"])
                     if date.year == int(year) and date.month == int(month):
                         mood_data.append({
                             "date": date,
@@ -264,10 +264,10 @@ def generate_insights(year, month, mood_field, selected_category):
         if selected_category in translated_data_global:
             for item in translated_data_global[selected_category]:
                 date = None
-                if "date" in item:
+                if "data" in item:
+                    date = pd.to_datetime(item["data"])
+                elif "date" in item:
                     date = pd.to_datetime(item["date"])
-                elif "dateTaken" in item:
-                    date = pd.to_datetime(item["dateTaken"])
                 
                 if date and date.year == int(year) and date.month == int(month):
                     category_data.append({
@@ -321,8 +321,8 @@ def generate_nutrition_insights(nutrition_df, mood_df):
             nutrition_item = nutr_row["item"]
             
             # Get time difference in hours
-            if "dateTaken" in nutrition_item:
-                nutr_time = pd.to_datetime(nutrition_item["dateTaken"])
+            if "data" in nutrition_item:
+                nutr_time = pd.to_datetime(nutrition_item["data"])
                 time_diff = abs((mood_date - nutr_time).total_seconds() / 3600)
                 
                 # Only consider entries within 3 hours
