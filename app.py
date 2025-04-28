@@ -214,7 +214,7 @@ def upload_and_process(file_obj):
         if "nutritions" in original_full_json:
             for item in original_full_json["nutritions"]:
                 if "dateTaken" in item:
-                    item["date"] = item.pop("dateTaken")
+                    item["date"] = item["dateTaken"]
         
         keys_to_update = ["nutritions", "activities", "medications", "symptoms"]
 
@@ -266,6 +266,8 @@ def generate_insights(year, month, mood_field, selected_category):
                 date = None
                 if "date" in item:
                     date = pd.to_datetime(item["date"])
+                elif "dateTaken" in item:
+                    date = pd.to_datetime(item["dateTaken"])
                 
                 if date and date.year == int(year) and date.month == int(month):
                     category_data.append({
