@@ -45,6 +45,8 @@ nutrition_db = {
     "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
 }
 
+translated_data_global = []
+
 def extract_food_nutrition(food_name):
     total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
     for key in nutrition_db:
@@ -75,8 +77,6 @@ def translate_value(value, key=None):
     else:
         return value
 
-translated_data_global = []
-
 def translate_json(file_obj):
     global translated_data_global
     try:
@@ -84,7 +84,6 @@ def translate_json(file_obj):
         json_data = json.loads(content)
         translated_data = translate_value(json_data)
 
-        # עידכון ערכים תזונתיים
         for entry in translated_data:
             if isinstance(entry, dict) and "foodName" in entry:
                 food_name = entry.get("foodName", "")
@@ -97,7 +96,7 @@ def translate_json(file_obj):
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
 
-        return output_path
+        return output_path  # מחזירים קובץ אמיתי
     except Exception as e:
         print("Error:", e)
         return None
@@ -108,10 +107,10 @@ def generate_insights(year, month, mood_field, nutrition_field):
 
     df = pd.DataFrame(translated_data_global)
     df["date"] = pd.to_datetime(df["date"], errors='coerce')
-    
-    df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
 
+    df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
     df = df.dropna(subset=["date", mood_field, nutrition_field])
+
     df["hour"] = df["date"].dt.hour
     df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
 
@@ -125,7 +124,7 @@ def generate_insights(year, month, mood_field, nutrition_field):
 
     return insights if insights else "No insights found for selected data."
 
-# ממשק גרפי
+# הממשק
 with gr.Blocks() as demo:
     gr.Markdown("## 🈯 JSON Translator + Nutrition Updater")
 
@@ -139,12 +138,13 @@ with gr.Blocks() as demo:
     gr.Markdown("## 📅 Analyze Mood and Nutrition by Year and Month")
 
     with gr.Row():
-        month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
         year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year")
+        month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
+    with gr.Row():
         mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
         nutrition_dropdown = gr.Dropdown(
-            choices=["nutrition", "physical activity", "sleep", "medications"],
-            label="Select Data Category"
+            choices=["proteins", "fats", "carbohydrates", "dietaryFiber"],
+            label="Select Nutrition Field"
         )
 
     insights_output = gr.Textbox(label="📌 Insights", lines=8)
