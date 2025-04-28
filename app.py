@@ -8,7 +8,7 @@ import pandas as pd
 
 translator = Translator()
 
-# Translation cache
+# מילון תרגום מלא
 translation_cache = {
     "איטי": "Slow",
     "לא מצליח להתאזן ולהתאמן": "Unable to balance and exercise",
@@ -28,11 +28,33 @@ translation_cache = {
     "חצי פיתה עם חמאת בוטנים": "Half pita with peanut butter",
     "פלפל ומלפפון": "Pepper and cucumber",
     "קערת קורנפלקס עם חלב סויה וצימוקים": "Bowl of cornflakes with soy milk and raisins",
+    "קערת קורנפלקס עם חלב שקדים וצימוקים": "Bowl of cornflakes with almond milk and raisins",
     "סלמון עם פירה ואפונה": "Salmon with mashed potatoes and peas",
     "פיתה טחינה מלפפון עגבנייה ושניצל קטן": "Pita with tahini, cucumber, tomato and schnitzel",
+    "מעדן סויה אפרסק": "Peach soy pudding",
+    "פלפל עם קוטג'": "Pepper with cottage cheese",
+    "רבע פיתה עם ממרח בוטנים": "Quarter pita with peanut spread",
+    "תפו\"א מבושלים שעועית ירוקה וקצת קינואה, 50 גרם עוף": "Boiled potatoes, green beans and a bit of quinoa with 50g chicken",
+    "תפו\"א מבושלים, סלט ביצים": "Boiled potatoes and egg salad",
+    "מרק ירקות עם פתיתים": "Vegetable soup with ptitim",
+    "מרק אפונה, כרובית מבושלת": "Pea soup with cooked cauliflower",
+    "צלחת מרק סלרי": "Plate of celery soup",
+    "פאי אגסים וקפה קטן": "Pear pie and small coffee",
+    "שקדים טבעיים": "Natural almonds",
+    "עוגת תפוחים": "Apple cake",
+    "חלב סויה": "Soy milk",
+    "חלב שקדים": "Almond milk",
+    "צימוקים": "Raisins",
+    "מלפפון": "Cucumber",
+    "פלפל": "Pepper",
+    "טחינה": "Tahini",
+    "עגבנייה": "Tomato",
+    "פירה": "Mashed potatoes",
+    "אפונה": "Peas",
+    "שניצל": "Schnitzel",
 }
 
-# Nutrition database
+# מילון ערכים תזונתיים מלא
 nutrition_db = {
     "פיתה": {"proteins": 6, "fats": 1.5, "carbohydrates": 33, "dietaryFiber": 1.5},
     "חמאת בוטנים": {"proteins": 8, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
@@ -46,7 +68,17 @@ nutrition_db = {
     "פלפל": {"proteins": 1, "fats": 0.3, "carbohydrates": 6, "dietaryFiber": 2.1},
     "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
     "טחינה": {"proteins": 17, "fats": 57, "carbohydrates": 10, "dietaryFiber": 10},
+    "עגבנייה": {"proteins": 0.9, "fats": 0.2, "carbohydrates": 3.9, "dietaryFiber": 1.2},
+    "פירה": {"proteins": 2, "fats": 0.1, "carbohydrates": 15, "dietaryFiber": 1.5},
+    "אפונה": {"proteins": 5, "fats": 0.4, "carbohydrates": 14, "dietaryFiber": 5},
+    "מעדן סויה אפרסק": {"proteins": 4.4, "fats": 2.25, "carbohydrates": 24.5, "dietaryFiber": 3},
+    "שקדים טבעיים": {"proteins": 21, "fats": 49, "carbohydrates": 22, "dietaryFiber": 12.5},
+    "פאי אגסים וקפה קטן": {"proteins": 3.3, "fats": 12.1, "carbohydrates": 40.4, "dietaryFiber": 2},
+    "עוגת תפוחים": {"proteins": 3, "fats": 13, "carbohydrates": 38, "dietaryFiber": 1.5},
+    "צלחת מרק סלרי": {"proteins": 1, "fats": 0.5, "carbohydrates": 4, "dietaryFiber": 1.5},
 }
+
+# פונקציות עיבוד
 
 translated_data_global = {}
 original_full_json = {}
@@ -80,14 +112,12 @@ def extract_food_nutrition(food_name):
 
 def upload_and_process(file_obj):
     global translated_data_global, original_full_json
-
     try:
         file_path = file_obj.name
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
-        original_full_json = json.loads(content)
 
+        original_full_json = json.loads(content)
         keys_to_update = ["nutritions", "activities", "medications", "symptoms"]
 
         for key in keys_to_update:
@@ -108,24 +138,19 @@ def upload_and_process(file_obj):
             json.dump(translated_data_global, f, ensure_ascii=False, indent=2)
 
         return output_path, "✅ File processed successfully!"
-
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
 def generate_insights(year, month, mood_field, selected_category):
     if not translated_data_global:
         return "Please upload a file first."
-
     try:
         section = translated_data_global.get(selected_category, [])
         if not section:
             return f"No {selected_category} data found."
 
         df = pd.DataFrame(section)
-        if df.empty:
-            return f"No {selected_category} data available."
-
-        if "date" not in df.columns:
+        if df.empty or "date" not in df.columns:
             return "No date field found."
 
         df["date"] = pd.to_datetime(df["date"], errors='coerce')
@@ -141,11 +166,11 @@ def generate_insights(year, month, mood_field, selected_category):
             insights += f"No mood field '{mood_field}' found.\n"
 
         return insights
-
     except Exception as e:
         return f"❌ Error generating insights: {str(e)}"
 
-# Gradio Interface
+# גרדייו
+
 with gr.Blocks() as demo:
     gr.Markdown("## 🈯 JSON Translator + Full Nutrition Update")
 
