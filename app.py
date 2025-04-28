@@ -93,29 +93,26 @@ def process_json_file(file_path):
         
         json_data = json.loads(content)
         
+        # Store original data for reference
+        original_data = json_data.copy()
+        
         # Translate all data
         translated_data = translate_value(json_data)
         
-        # Process each entry to add nutritional values
-        for entry in translated_data:
-            if isinstance(entry, dict) and "foodName" in entry:
-                # Get the original Hebrew food name before translation
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    original_data = json.loads(f.read())
-                
-                # Find matching entry in original data
-                for orig_entry in original_data:
-                    if isinstance(orig_entry, dict) and "foodName" in orig_entry:
-                        if orig_entry.get("date") == entry.get("date"):
-                            # Extract nutrition values based on original Hebrew food name
-                            orig_food_name = orig_entry.get("foodName", "")
-                            values = extract_food_nutrition(orig_food_name)
-                            entry["nutritionalValues"] = values
-                            break
-                else:
-                    # If no match found, use the translated food name
-                    food_name = entry.get("foodName", "")
+        # Process each entry to add/update nutritional values
+        for i, entry in enumerate(translated_data):
+            if isinstance(entry, dict):
+                # Initialize nutritional values if not present
+                if "nutritionalValues" not in entry:
                     entry["nutritionalValues"] = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+                
+                # Update nutritional values if foodName is present
+                if "foodName" in entry and i < len(original_data):
+                    orig_entry = original_data[i]
+                    if isinstance(orig_entry, dict) and "foodName" in orig_entry:
+                        orig_food_name = orig_entry.get("foodName", "")
+                        values = extract_food_nutrition(orig_food_name)
+                        entry["nutritionalValues"] = values
         
         # Store the translated data globally
         translated_data_global = translated_data
@@ -126,7 +123,7 @@ def process_json_file(file_path):
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
         
         # Return status and file path
-        return True, output_path, "Translation complete! You can download the updated file."
+        return True, output_path, f"Translation complete! Found {len(translated_data)} entries. You can download the updated file."
     
     except Exception as e:
         print(f"Error processing JSON file: {e}")
@@ -138,7 +135,7 @@ def upload_and_process(file_obj):
         return None, "Please upload a JSON file."
     
     try:
-        # This is the fix: use the file path property instead of trying to read the file object
+        # Use the file path property instead of trying to read the file object
         file_path = file_obj.name
         success, file_path, message = process_json_file(file_path)
         
@@ -156,11 +153,17 @@ def generate_insights(year, month, mood_field, nutrition_field):
 
     try:
         df = pd.DataFrame(translated_data_global)
+        
+        # Check if date field exists
+        if "date" not in df.columns:
+            return "Date field not found in the data."
+            
+        # Convert date strings to datetime objects
         df["date"] = pd.to_datetime(df["date"], errors='coerce')
 
         # Filter data for the selected year and month
-        df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
-        df = df.dropna(subset=["date"])
+        if not df["date"].isna().all():  # Check if there are valid dates
+            df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
         
         # Check if the data is empty after filtering
         if len(df) == 0:
@@ -171,46 +174,63 @@ def generate_insights(year, month, mood_field, nutrition_field):
             return f"Mood field '{mood_field}' not found in data."
         
         # Extract nutritional values
-        if nutrition_field in ["proteins", "fats", "carbohydrates", "dietaryFiber"]:
-            # Create the nutrition columns if they don't exist
-            for entry in df.iterrows():
-                row = entry[1]
-                if "nutritionalValues" in row and isinstance(row["nutritionalValues"], dict):
-                    nutrition_val = row["nutritionalValues"].get(nutrition_field, 0)
-                    if nutrition_field not in df.columns:
-                        df[nutrition_field] = None
-                    df.at[entry[0], nutrition_field] = nutrition_val
+        if "nutritionalValues" in df.columns:
+            for row_idx, row in df.iterrows():
+                if isinstance(row["nutritionalValues"], dict):
+                    for key in ["proteins", "fats", "carbohydrates", "dietaryFiber"]:
+                        if key not in df.columns:
+                            df[key] = 0
+                        df.at[row_idx, key] = row["nutritionalValues"].get(key, 0)
         
+        # Check if nutrition field exists
         if nutrition_field not in df.columns:
             return f"Nutrition field '{nutrition_field}' not found in data."
         
-        df["hour"] = df["date"].dt.hour
-        df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
+        # Add time of day
+        if not df["date"].isna().all():
+            df["hour"] = df["date"].dt.hour
+            df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
 
         # Create insights based on time of day
         insights = "Insights for selected period:\n\n"
         
         # Analyze by time of day if there's enough data
         try:
-            group = df.groupby("time_of_day").agg({
-                mood_field: 'mean',
-                nutrition_field: 'mean'
-            })
+            # Handle both numeric and string mood values
+            df[mood_field] = pd.to_numeric(df[mood_field], errors='coerce')
+            df[nutrition_field] = pd.to_numeric(df[nutrition_field], errors='coerce')
             
-            for time in group.index:
-                try:
+            # Filter out rows with missing values
+            valid_data = df.dropna(subset=[mood_field, nutrition_field])
+            
+            if len(valid_data) == 0:
+                return "No valid numeric data found for analysis."
+                
+            if "time_of_day" in valid_data.columns:
+                group = valid_data.groupby("time_of_day").agg({
+                    mood_field: 'mean',
+                    nutrition_field: 'mean'
+                })
+                
+                for time in group.index:
                     mood_avg = round(float(group.loc[time][mood_field]), 2)
                     nut_avg = round(float(group.loc[time][nutrition_field]), 2)
                     insights += f"- During {time}: Mood avg = {mood_avg}, {nutrition_field} avg = {nut_avg}\n"
-                except:
-                    insights += f"- During {time}: Insufficient data\n"
             
             # Overall statistics
-            try:
-                insights += f"\nOverall average {mood_field}: {round(df[mood_field].mean(), 2)}\n"
-                insights += f"Overall average {nutrition_field}: {round(df[nutrition_field].mean(), 2)}\n"
-            except:
-                insights += "\nInsufficient data for overall averages.\n"
+            insights += f"\nOverall average {mood_field}: {round(valid_data[mood_field].mean(), 2)}\n"
+            insights += f"Overall average {nutrition_field}: {round(valid_data[nutrition_field].mean(), 2)}\n"
+            
+            # Add correlation if there's enough data
+            if len(valid_data) >= 5:
+                correlation = valid_data[mood_field].corr(valid_data[nutrition_field])
+                insights += f"\nCorrelation between {mood_field} and {nutrition_field}: {round(correlation, 3)}\n"
+                
+                if abs(correlation) > 0.5:
+                    if correlation > 0:
+                        insights += f"There appears to be a positive relationship between {mood_field} and {nutrition_field}."
+                    else:
+                        insights += f"There appears to be a negative relationship between {mood_field} and {nutrition_field}."
             
             return insights
         except Exception as e:
