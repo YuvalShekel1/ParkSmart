@@ -82,13 +82,15 @@ def translate_value(value, key=None):
     else:
         return value
 
-def process_json_file(file_obj):
+def process_json_file(file_path):
     """Process the uploaded JSON file, translate it, and add nutritional values"""
     global translated_data_global
     
     try:
         # Read the JSON file
-        content = file_obj.read().decode('utf-8')
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
         json_data = json.loads(content)
         
         # Translate all data
@@ -98,8 +100,7 @@ def process_json_file(file_obj):
         for entry in translated_data:
             if isinstance(entry, dict) and "foodName" in entry:
                 # Get the original Hebrew food name before translation
-                original_file = file_obj.name
-                with open(original_file, 'r', encoding='utf-8') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     original_data = json.loads(f.read())
                 
                 # Find matching entry in original data
@@ -136,12 +137,17 @@ def upload_and_process(file_obj):
     if file_obj is None:
         return None, "Please upload a JSON file."
     
-    success, file_path, message = process_json_file(file_obj)
-    
-    if success:
-        return file_path, message
-    else:
-        return None, message
+    try:
+        # This is the fix: use the file path property instead of trying to read the file object
+        file_path = file_obj.name
+        success, file_path, message = process_json_file(file_path)
+        
+        if success:
+            return file_path, message
+        else:
+            return None, message
+    except Exception as e:
+        return None, f"Error processing file: {str(e)}"
 
 def generate_insights(year, month, mood_field, nutrition_field):
     """Generate insights based on the translated data"""
@@ -156,14 +162,27 @@ def generate_insights(year, month, mood_field, nutrition_field):
         df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
         df = df.dropna(subset=["date"])
         
-        # Check if the selected fields exist
-        if mood_field not in df.columns or not any(item in df.columns for item in ["nutritionalValues"]):
-            return f"Selected fields not found in the data. Available fields: {', '.join(df.columns)}"
+        # Check if the data is empty after filtering
+        if len(df) == 0:
+            return f"No data found for {year}-{month}."
         
-        # Extract nutritional values if they exist
-        if "nutritionalValues" in df.columns and isinstance(df["nutritionalValues"].iloc[0], dict):
-            for key in ["proteins", "fats", "carbohydrates", "dietaryFiber"]:
-                df[key] = df["nutritionalValues"].apply(lambda x: x.get(key, 0) if isinstance(x, dict) else 0)
+        # Check if the mood field exists
+        if mood_field not in df.columns:
+            return f"Mood field '{mood_field}' not found in data."
+        
+        # Extract nutritional values
+        if nutrition_field in ["proteins", "fats", "carbohydrates", "dietaryFiber"]:
+            # Create the nutrition columns if they don't exist
+            for entry in df.iterrows():
+                row = entry[1]
+                if "nutritionalValues" in row and isinstance(row["nutritionalValues"], dict):
+                    nutrition_val = row["nutritionalValues"].get(nutrition_field, 0)
+                    if nutrition_field not in df.columns:
+                        df[nutrition_field] = None
+                    df.at[entry[0], nutrition_field] = nutrition_val
+        
+        if nutrition_field not in df.columns:
+            return f"Nutrition field '{nutrition_field}' not found in data."
         
         df["hour"] = df["date"].dt.hour
         df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
@@ -171,25 +190,31 @@ def generate_insights(year, month, mood_field, nutrition_field):
         # Create insights based on time of day
         insights = "Insights for selected period:\n\n"
         
-        # Analyze by time of day
-        if len(df) > 0:
+        # Analyze by time of day if there's enough data
+        try:
             group = df.groupby("time_of_day").agg({
                 mood_field: 'mean',
                 nutrition_field: 'mean'
             })
             
             for time in group.index:
-                mood_avg = round(group.loc[time][mood_field], 2) if mood_field in group.columns else "N/A"
-                nut_avg = round(group.loc[time][nutrition_field], 2) if nutrition_field in group.columns else "N/A"
-                insights += f"- During {time}: Mood avg = {mood_avg}, {nutrition_field} avg = {nut_avg}\n"
+                try:
+                    mood_avg = round(float(group.loc[time][mood_field]), 2)
+                    nut_avg = round(float(group.loc[time][nutrition_field]), 2)
+                    insights += f"- During {time}: Mood avg = {mood_avg}, {nutrition_field} avg = {nut_avg}\n"
+                except:
+                    insights += f"- During {time}: Insufficient data\n"
             
             # Overall statistics
-            insights += f"\nOverall average {mood_field}: {round(df[mood_field].mean(), 2)}\n"
-            insights += f"Overall average {nutrition_field}: {round(df[nutrition_field].mean(), 2)}\n"
+            try:
+                insights += f"\nOverall average {mood_field}: {round(df[mood_field].mean(), 2)}\n"
+                insights += f"Overall average {nutrition_field}: {round(df[nutrition_field].mean(), 2)}\n"
+            except:
+                insights += "\nInsufficient data for overall averages.\n"
             
             return insights
-        else:
-            return "No data found for the selected period."
+        except Exception as e:
+            return f"Error in analysis: {str(e)}\n\nPlease check if there's enough data for analysis."
         
     except Exception as e:
         return f"Error generating insights: {str(e)}"
