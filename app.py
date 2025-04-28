@@ -8,7 +8,7 @@ import pandas as pd
 
 translator = Translator()
 
-# מילון תרגום
+# Dictionary for translation
 translation_cache = {
     "איטי": "Slow",
     "לא מצליח להתאזן ולהתאמן": "Unable to balance and exercise",
@@ -32,7 +32,7 @@ translation_cache = {
     "פיתה טחינה מלפפון עגבנייה ושניצל קטן": "Pita with tahini, cucumber, tomato and schnitzel",
 }
 
-# מילון ערכים תזונתיים
+# Nutrition database
 nutrition_db = {
     "פיתה": {"proteins": 6, "fats": 1.5, "carbohydrates": 33, "dietaryFiber": 1.5},
     "חמאת בוטנים": {"proteins": 8, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
@@ -48,14 +48,19 @@ nutrition_db = {
 translated_data_global = []
 
 def extract_food_nutrition(food_name):
+    """Extract nutritional values from a food item based on the nutrition database"""
     total = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    
+    # Check against Hebrew food names in the database
     for key in nutrition_db:
         if key in food_name:
             for k in total:
                 total[k] += nutrition_db[key][k]
+                
     return total
 
 def translate_value(value, key=None):
+    """Translate a value from Hebrew to English"""
     if key == "notes":
         return value
     if isinstance(value, str):
@@ -77,79 +82,161 @@ def translate_value(value, key=None):
     else:
         return value
 
-def translate_json(file_obj):
+def process_json_file(file_obj):
+    """Process the uploaded JSON file, translate it, and add nutritional values"""
     global translated_data_global
+    
     try:
+        # Read the JSON file
         content = file_obj.read().decode('utf-8')
         json_data = json.loads(content)
+        
+        # Translate all data
         translated_data = translate_value(json_data)
-
+        
+        # Process each entry to add nutritional values
         for entry in translated_data:
             if isinstance(entry, dict) and "foodName" in entry:
-                food_name = entry.get("foodName", "")
-                values = extract_food_nutrition(food_name)
-                entry["nutritionalValues"] = values
-
+                # Get the original Hebrew food name before translation
+                original_file = file_obj.name
+                with open(original_file, 'r', encoding='utf-8') as f:
+                    original_data = json.loads(f.read())
+                
+                # Find matching entry in original data
+                for orig_entry in original_data:
+                    if isinstance(orig_entry, dict) and "foodName" in orig_entry:
+                        if orig_entry.get("date") == entry.get("date"):
+                            # Extract nutrition values based on original Hebrew food name
+                            orig_food_name = orig_entry.get("foodName", "")
+                            values = extract_food_nutrition(orig_food_name)
+                            entry["nutritionalValues"] = values
+                            break
+                else:
+                    # If no match found, use the translated food name
+                    food_name = entry.get("foodName", "")
+                    entry["nutritionalValues"] = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+        
+        # Store the translated data globally
         translated_data_global = translated_data
-
+        
+        # Save to a temporary file
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data, f, ensure_ascii=False, indent=2)
-
-        return output_path  # מחזירים קובץ אמיתי
+        
+        # Return status and file path
+        return True, output_path, "Translation complete! You can download the updated file."
+    
     except Exception as e:
-        print("Error:", e)
-        return None
+        print(f"Error processing JSON file: {e}")
+        return False, None, f"Error: {str(e)}"
+
+def upload_and_process(file_obj):
+    """Handle file upload and processing"""
+    if file_obj is None:
+        return None, "Please upload a JSON file."
+    
+    success, file_path, message = process_json_file(file_obj)
+    
+    if success:
+        return file_path, message
+    else:
+        return None, message
 
 def generate_insights(year, month, mood_field, nutrition_field):
+    """Generate insights based on the translated data"""
     if not translated_data_global:
         return "Please upload a file first."
 
-    df = pd.DataFrame(translated_data_global)
-    df["date"] = pd.to_datetime(df["date"], errors='coerce')
+    try:
+        df = pd.DataFrame(translated_data_global)
+        df["date"] = pd.to_datetime(df["date"], errors='coerce')
 
-    df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
-    df = df.dropna(subset=["date", mood_field, nutrition_field])
+        # Filter data for the selected year and month
+        df = df[(df["date"].dt.month == int(month)) & (df["date"].dt.year == int(year))]
+        df = df.dropna(subset=["date"])
+        
+        # Check if the selected fields exist
+        if mood_field not in df.columns or not any(item in df.columns for item in ["nutritionalValues"]):
+            return f"Selected fields not found in the data. Available fields: {', '.join(df.columns)}"
+        
+        # Extract nutritional values if they exist
+        if "nutritionalValues" in df.columns and isinstance(df["nutritionalValues"].iloc[0], dict):
+            for key in ["proteins", "fats", "carbohydrates", "dietaryFiber"]:
+                df[key] = df["nutritionalValues"].apply(lambda x: x.get(key, 0) if isinstance(x, dict) else 0)
+        
+        df["hour"] = df["date"].dt.hour
+        df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
 
-    df["hour"] = df["date"].dt.hour
-    df["time_of_day"] = pd.cut(df["hour"], bins=[-1, 10, 15, 24], labels=["morning", "noon", "evening"])
+        # Create insights based on time of day
+        insights = "Insights for selected period:\n\n"
+        
+        # Analyze by time of day
+        if len(df) > 0:
+            group = df.groupby("time_of_day").agg({
+                mood_field: 'mean',
+                nutrition_field: 'mean'
+            })
+            
+            for time in group.index:
+                mood_avg = round(group.loc[time][mood_field], 2) if mood_field in group.columns else "N/A"
+                nut_avg = round(group.loc[time][nutrition_field], 2) if nutrition_field in group.columns else "N/A"
+                insights += f"- During {time}: Mood avg = {mood_avg}, {nutrition_field} avg = {nut_avg}\n"
+            
+            # Overall statistics
+            insights += f"\nOverall average {mood_field}: {round(df[mood_field].mean(), 2)}\n"
+            insights += f"Overall average {nutrition_field}: {round(df[nutrition_field].mean(), 2)}\n"
+            
+            return insights
+        else:
+            return "No data found for the selected period."
+        
+    except Exception as e:
+        return f"Error generating insights: {str(e)}"
 
-    group = df.groupby("time_of_day")[[mood_field, nutrition_field]].mean()
-
-    insights = ""
-    for time in group.index:
-        mood_avg = round(group.loc[time][mood_field], 2)
-        nut_avg = round(group.loc[time][nutrition_field], 2)
-        insights += f"- During {time}: Mood avg = {mood_avg}, {nutrition_field} avg = {nut_avg}\n"
-
-    return insights if insights else "No insights found for selected data."
-
-# הממשק
+# Create the Gradio interface
 with gr.Blocks() as demo:
     gr.Markdown("## 🈯 JSON Translator + Nutrition Updater")
-
+    
     with gr.Row():
-        file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
+        with gr.Column(scale=2):
+            file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
+        with gr.Column(scale=1):
+            status_text = gr.Textbox(label="Status", interactive=False)
+    
+    with gr.Row():
         output_file = gr.File(label="⬇️ Download the updated file")
-
-    file_input.change(fn=translate_json, inputs=file_input, outputs=output_file)
-
+    
+    # Translation section
     gr.Markdown("---")
     gr.Markdown("## 📅 Analyze Mood and Nutrition by Year and Month")
-
+    
     with gr.Row():
-        year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year")
-        month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month")
+        year_selector = gr.Dropdown(choices=["2024", "2025"], label="Select Year", value="2024")
+        month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], label="Select Month", value="1")
+    
     with gr.Row():
-        mood_dropdown = gr.Dropdown(choices=["Parkinson's State", "My Mood", "Physical State"], label="Select Mood Field")
+        mood_dropdown = gr.Dropdown(
+            choices=["Parkinson's State", "My Mood", "Physical State"], 
+            label="Select Mood Field",
+            value="My Mood"
+        )
         nutrition_dropdown = gr.Dropdown(
             choices=["proteins", "fats", "carbohydrates", "dietaryFiber"],
-            label="Select Nutrition Field"
+            label="Select Nutrition Field",
+            value="proteins"
         )
-
+    
     insights_output = gr.Textbox(label="📌 Insights", lines=8)
     analyze_btn = gr.Button("🔍 Generate Insights")
-
+    
+    # Connect the functions to the interface
+    file_input.change(
+        fn=upload_and_process,
+        inputs=file_input, 
+        outputs=[output_file, status_text]
+    )
+    
     analyze_btn.click(
         fn=generate_insights,
         inputs=[year_selector, month_selector, mood_dropdown, nutrition_dropdown],
