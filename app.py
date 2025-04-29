@@ -305,161 +305,82 @@ def generate_insights(year, month, mood_field, selected_category):
         return f"❌ Error generating insights: {str(e)}"
 
 def generate_nutrition_insights(nutrition_df, mood_df):
-    insights = "🍎 תובנות תזונה:\n"
+    insights = "🍎 Nutrition Insights:\n"
     
-    # איחוד נתונים לפי תאריך לניתוח (שימוש בקרבת זמנים)
+    # Merge data by date for analysis (using date proximity)
     combined_data = []
     
     for _, mood_row in mood_df.iterrows():
         mood_date = mood_row["date"]
         mood_value = mood_row["value"]
         
-        # מציאת רשומות תזונה באותו יום
+        # Find nutrition entries on the same day
         same_day_nutrition = nutrition_df[nutrition_df["date"].dt.date == mood_date.date()]
         
         for _, nutr_row in same_day_nutrition.iterrows():
             nutrition_item = nutr_row["item"]
             
-            # חישוב הפרש זמנים בשעות
+            # Get time difference in hours
             if "dateTaken" in nutrition_item:
                 nutr_time = pd.to_datetime(nutrition_item["dateTaken"])
                 time_diff = abs((mood_date - nutr_time).total_seconds() / 3600)
                 
-                # התייחסות רק לרשומות בטווח של 3 שעות
+                # Only consider entries within 3 hours
                 if time_diff <= 3:
-                    food_name = nutrition_item.get("foodName", "")
-                    nutr_values = nutrition_item.get("nutritionalValues", {})
-                    
-                    # סיווג סוגי מזון לפי ערכים תזונתיים
-                    food_type = []
-                    proteins = nutr_values.get("proteins", 0)
-                    carbs = nutr_values.get("carbohydrates", 0)
-                    fats = nutr_values.get("fats", 0)
-                    
-                    if proteins >= 10:
-                        food_type.append("high_protein")
-                    if carbs >= 15:
-                        food_type.append("high_carbs")
-                    if fats >= 10:
-                        food_type.append("high_fat")
-                    
                     combined_data.append({
                         "mood_value": mood_value,
-                        "food_name": food_name,
-                        "proteins": proteins,
-                        "fats": fats,
-                        "carbs": carbs,
-                        "fiber": nutr_values.get("dietaryFiber", 0),
-                        "time_diff": time_diff,
-                        "food_type": food_type
+                        "food_name": nutrition_item.get("foodName", ""),
+                        "proteins": nutrition_item.get("nutritionalValues", {}).get("proteins", 0),
+                        "fats": nutrition_item.get("nutritionalValues", {}).get("fats", 0),
+                        "carbs": nutrition_item.get("nutritionalValues", {}).get("carbohydrates", 0),
+                        "fiber": nutrition_item.get("nutritionalValues", {}).get("dietaryFiber", 0),
+                        "time_diff": time_diff
                     })
     
     if not combined_data:
-        return insights + "אין מספיק נתונים עם תזמון קרוב לניתוח קורלציה בין תזונה למצב רוח.\n"
+        return insights + "Not enough close-timing data to analyze correlation between nutrition and mood.\n"
     
-    # המרה ל-DataFrame לניתוח
+    # Convert to DataFrame for analysis
     analysis_df = pd.DataFrame(combined_data)
     
-    # ניתוח השפעת חלבון
+    # Analyze protein impact
     high_protein = analysis_df[analysis_df["proteins"] > 10]["mood_value"].mean()
     low_protein = analysis_df[analysis_df["proteins"] <= 10]["mood_value"].mean()
     
     if not np.isnan(high_protein) and not np.isnan(low_protein) and abs(high_protein - low_protein) > 0.5:
-        insights += f"• בצריכת מזונות עתירי חלבון (>10 גרם), מצב הרוח ממוצע {round(high_protein, 1)} לעומת {round(low_protein, 1)} עם מזונות דלי חלבון.\n"
+        insights += f"• When consuming high-protein foods (>10g), mood averages {round(high_protein, 1)} compared to {round(low_protein, 1)} with lower protein foods.\n"
     
-    # ניתוח השפעת פחמימות
-    high_carbs = analysis_df[analysis_df["carbs"] > 15]["mood_value"].mean()
-    low_carbs = analysis_df[analysis_df["carbs"] <= 15]["mood_value"].mean()
-    
-    if not np.isnan(high_carbs) and not np.isnan(low_carbs) and abs(high_carbs - low_carbs) > 0.5:
-        better = "משתפר" if high_carbs > low_carbs else "מתדרדר"
-        insights += f"• אחרי אכילת פחמימות גבוהות (>15 גרם), מצב הרוח בדרך כלל {better} לציון {round(high_carbs, 1)}.\n"
-    
-    # ניתוח השפעת שומן
-    high_fat = analysis_df[analysis_df["fats"] > 10]["mood_value"].mean()
-    low_fat = analysis_df[analysis_df["fats"] <= 10]["mood_value"].mean()
-    
-    if not np.isnan(high_fat) and not np.isnan(low_fat) and abs(high_fat - low_fat) > 0.5:
-        better = "משתפר" if high_fat > low_fat else "מתדרדר"
-        insights += f"• אחרי אכילת מזונות עתירי שומן (>10 גרם), מצב הרוח בדרך כלל {better} לציון {round(high_fat, 1)}.\n"
-    
-    # ניתוח מזונות ספציפיים שחוזרים על עצמם
-    food_mood_avg = {}
-    for food in set(analysis_df["food_name"]):
-        if food:  # רק אם שם המזון לא ריק
-            food_data = analysis_df[analysis_df["food_name"] == food]
-            if len(food_data) >= 2:  # לפחות 2 פעמים שהמזון הזה נאכל
-                avg_mood = food_data["mood_value"].mean()
-                food_mood_avg[food] = (avg_mood, len(food_data))
-    
-    # מציאת מזונות עם השפעה חזקה על מצב הרוח
-    significant_foods = []
-    avg_mood = analysis_df["mood_value"].mean()
-    
-    for food, (mood, count) in food_mood_avg.items():
-        if abs(mood - avg_mood) > 0.7 and count >= 2:
-            effect = "משפר" if mood > avg_mood else "מוריד"
-            significant_foods.append((food, mood, effect, count))
-    
-    if significant_foods:
-        insights += "\n• מזונות עם השפעה משמעותית:\n"
-        for food, mood, effect, count in sorted(significant_foods, key=lambda x: abs(x[1]-avg_mood), reverse=True):
-            insights += f"  - {food} {effect} את מצב הרוח לערך {round(mood, 1)} (נצפה {count} פעמים)\n"
-    
-    # מציאת שילובי סוגי מזון
-    type_combinations = []
-    for idx, row in analysis_df.iterrows():
-        types = row["food_type"]
-        mood = row["mood_value"]
-        if types:
-            type_string = "+".join(sorted(types))
-            type_combinations.append((type_string, mood))
-    
-    # ניתוח השפעות שילובי סוגי מזון
-    type_mood = {}
-    for combo, mood in type_combinations:
-        if combo not in type_mood:
-            type_mood[combo] = []
-        type_mood[combo].append(mood)
-    
-    # הצגת תובנות על שילובי מזון משמעותיים
-    significant_combos = []
-    for combo, moods in type_mood.items():
-        if len(moods) >= 2:  # לפחות 2 פעמים שהשילוב הזה נאכל
-            avg_combo_mood = sum(moods) / len(moods)
-            if abs(avg_combo_mood - avg_mood) > 0.5:
-                effect = "משפר" if avg_combo_mood > avg_mood else "מוריד"
-                combo_name = combo.replace("high_protein", "חלבון גבוה").replace("high_carbs", "פחמימות גבוהות").replace("high_fat", "שומן גבוה")
-                significant_combos.append((combo_name, avg_combo_mood, effect, len(moods)))
-    
-    if significant_combos:
-        insights += "\n• שילובי מזון עם השפעה משמעותית:\n"
-        for combo, mood, effect, count in sorted(significant_combos, key=lambda x: abs(x[1]-avg_mood), reverse=True):
-            insights += f"  - ארוחות המשלבות {combo} {effect} את מצב הרוח לערך {round(mood, 1)} (נצפה {count} פעמים)\n"
-    
-    # ניתוח מזונות בוקר
+    # Analyze morning nutrition
     morning_foods = Counter([row["food_name"] for _, row in nutrition_df.iterrows() 
-                             if row["date"].hour < 10 and row["item"].get("foodName", "")]).most_common(3)
+                             if row["date"].hour < 10]).most_common(3)
     
     if morning_foods:
-        insights += "\n• מזונות בוקר נפוצים: " + ", ".join([f"{name} ({count})" for name, count in morning_foods]) + "\n"
+        insights += "• Most common morning foods: " + ", ".join([f"{name} ({count})" for name, count in morning_foods]) + "\n"
     
-    # ניתוח דפוסים לפי זמני יום
-    try:
-        morning_mood = analysis_df[analysis_df["date"].dt.hour < 12]["mood_value"].mean()
-        afternoon_mood = analysis_df[(analysis_df["date"].dt.hour >= 12) & (analysis_df["date"].dt.hour < 18)]["mood_value"].mean()
-        evening_mood = analysis_df[analysis_df["date"].dt.hour >= 18]["mood_value"].mean()
+    # Find potential correlations
+    corr_nutrients = []
+    for nutrient in ["proteins", "fats", "carbs", "fiber"]:
+        try:
+            correlation = analysis_df[[nutrient, "mood_value"]].corr().iloc[0,1]
+            if not np.isnan(correlation) and abs(correlation) > 0.3:
+                corr_nutrients.append((nutrient, correlation))
+        except:
+            pass
+    
+    if corr_nutrients:
+        for nutrient, corr in corr_nutrients:
+            direction = "positive" if corr > 0 else "negative"
+            strength = "strong" if abs(corr) > 0.6 else "moderate"
+            insights += f"• Found {strength} {direction} correlation ({round(corr, 2)}) between {nutrient} consumption and mood.\n"
+    
+    # Check timing patterns
+    if len(analysis_df) >= 3:
+        morning_mood = analysis_df[analysis_df["time_diff"] < 1]["mood_value"].mean()  
+        later_mood = analysis_df[analysis_df["time_diff"] >= 1]["mood_value"].mean()
         
-        best_time = ""
-        if not np.isnan(morning_mood) and not np.isnan(afternoon_mood) and not np.isnan(evening_mood):
-            times = {"בוקר": morning_mood, "צהריים": afternoon_mood, "ערב": evening_mood}
-            best_time = max(times, key=times.get)
-            worst_time = min(times, key=times.get)
-            
-            if abs(times[best_time] - times[worst_time]) > 0.5:
-                insights += f"\n• מצב הרוח נוטה להיות טוב יותר אחרי ארוחות {best_time} (ממוצע {round(times[best_time], 1)}).\n"
-    except:
-        pass
+        if not np.isnan(morning_mood) and not np.isnan(later_mood) and abs(morning_mood - later_mood) > 0.3:
+            better_time = "soon after eating" if morning_mood > later_mood else "some time after eating"
+            insights += f"• Mood tends to be better {better_time} (difference of {round(abs(morning_mood - later_mood), 1)} points).\n"
     
     return insights
 
@@ -481,4 +402,42 @@ def generate_symptom_insights(symptom_df, mood_df):
 # גרדייו
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown("## 🗣️
+    gr.Markdown("## 🗣️ JSON Translator + Full Nutrition Update")
+
+    with gr.Row():
+        file_input = gr.File(label="⬆️ Upload your JSON file", file_types=[".json"])
+        output_file = gr.File(label="⬇️ Download updated JSON")
+    status_message = gr.Textbox(label="Status", interactive=False)
+    file_input.change(fn=upload_and_process, inputs=file_input, outputs=[output_file, status_message])
+
+    gr.Markdown("---")
+    gr.Markdown("## 📊 Analyze by Category")
+
+    with gr.Row():
+        year_selector = gr.Dropdown(choices=["2024", "2025"], value="2025", label="Select Year")
+        month_selector = gr.Dropdown(choices=[str(i) for i in range(1, 13)], value="2", label="Select Month")
+    
+    with gr.Row():
+        mood_dropdown = gr.Dropdown(
+            choices=["Parkinson's State", "My Mood", "Physical State"], 
+            value="Parkinson's State",
+            label="Select Mood/State Field"
+        )
+        category_dropdown = gr.Dropdown(
+            choices=["nutritions", "activities", "medications", "symptoms"], 
+            value="nutritions",
+            label="Select Data Category"
+        )
+
+    insights_output = gr.Textbox(label="📊 Insights", lines=10)
+    analyze_btn = gr.Button("🔍 Generate Insights")
+
+    analyze_btn.click(
+        fn=generate_insights, 
+        inputs=[year_selector, month_selector, mood_dropdown, category_dropdown], 
+        outputs=insights_output
+    )
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
