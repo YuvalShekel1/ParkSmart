@@ -1119,7 +1119,8 @@ def create_analysis_interface():
                 gr.Markdown("### Data Visualizations")
                 visual_button = gr.Button("Generate Visualizations")
                 with gr.Row():
-                    visual_gallery = gr.Gallery(label="Pattern Visualizations").style(grid=2)
+                    visual_gallery = gr.Gallery(label="Pattern Visualizations")
+
         
         # Process file and data analysis
         process_button.click(
