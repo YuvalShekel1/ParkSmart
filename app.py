@@ -1131,7 +1131,7 @@ def create_analysis_interface():
         
         # Pattern analysis
         analyze_button.click(
-            fn=lambda field: summarize_insights(create_pattern_dashboard(translated_data_global))[field] if translated_data_global else "Please upload and process data first.",
+            fn=lambda field: summarize_insights(create_pattern_dashboard(translated_data_global)) if translated_data_global else "Please upload and process data first.",
             inputs=[pattern_field],
             outputs=[insight_output]
         )
