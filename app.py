@@ -11,7 +11,6 @@ import warnings
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import silhouette_score
 from scipy.stats import pearsonr, spearmanr
 from mlxtend.frequent_patterns import apriori, association_rules
@@ -110,6 +109,7 @@ translation_cache = {
     "אימון טנש": "Tennis Training",
     "אימון טנש קבוצתי": "Group Tennis Training",
     "משעה 2020 3 משחקים. הפסקה של 15 דקות לפני המשחקים": "From 8:20 PM, 3 games. 15-minute break before the games",
+    "טנש": "Tennis",
 }
 
 # מילון ערכים תזונתיים מורחב
@@ -309,85 +309,269 @@ def upload_and_process(file_obj):
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
-# פונקציה חדשה: מיצוי דפוסי זמן
-def extract_time_patterns(data, field_type, mood_field):
-    """מיצוי דפוסים מבוססי זמן עבור שדה ומצב רוח נתונים"""
-    if not data:
-        return {}
-    
-    try:
-        # קבל נקודות נתונים רלוונטיות
-        mood_data = []
-        if "symptoms" in data:
-            for item in data["symptoms"]:
-                if "date" in item and "type" in item and item.get("type") == mood_field:
-                    mood_data.append({
-                        "date": pd.to_datetime(item["date"]),
-                        "severity": item.get("severity", 0)
-                    })
-        
-        # קבל את נתוני השדה הנבחר
-        field_data = []
-        if field_type in data:
-            for item in data[field_type]:
-                if "date" in item:
-                    field_data.append({
-                        "date": pd.to_datetime(item["date"]),
-                        "data": item
-                    })
-        
-        if not mood_data or not field_data:
-            return {}
-        
-        # צור DataFrames
-        mood_df = pd.DataFrame(mood_data)
-        field_df = pd.DataFrame(field_data)
-        
-        # חלץ דפוס שעות היום
-        mood_df["hour"] = mood_df["date"].dt.hour
-        field_df["hour"] = field_df["date"].dt.hour
-        
-        # קבץ לפי שעות היום
-        morning_mood = mood_df[mood_df["hour"] < 12]["severity"].mean()
-        afternoon_mood = mood_df[(mood_df["hour"] >= 12) & (mood_df["hour"] < 18)]["severity"].mean()
-        evening_mood = mood_df[mood_df["hour"] >= 18]["severity"].mean()
-        
-        morning_count = len(field_df[field_df["hour"] < 12])
-        afternoon_count = len(field_df[(field_df["hour"] >= 12) & (field_df["hour"] < 18)])
-        evening_count = len(field_df[field_df["hour"] >= 18])
-        
-        return {
-            "morning_mood": morning_mood,
-            "afternoon_mood": afternoon_mood,
-            "evening_mood": evening_mood,
-            "morning_count": morning_count,
-            "afternoon_count": afternoon_count,
-            "evening_count": evening_count
-        }
-    except Exception as e:
-        print(f"Error in time pattern extraction: {str(e)}")
-        return {}
+# --- עזר: הכנת הדאטה פריים ---
 
-# ניתוח אשכולות תזונה
-def analyze_nutrition_clusters(data, mood_field):
-    if not data or "nutritions" not in data or "symptoms" not in data:
-        return "Not enough data for clustering analysis."
+def prepare_activity_and_mood_data(data, mood_field):
+    if not data or "activities" not in data or "symptoms" not in data:
+        return pd.DataFrame(), pd.DataFrame()
+
+    activity_list = []
+    for item in data.get("activities", []):
+        if "date" in item:
+            activity_list.append({
+                "date": pd.to_datetime(item["date"]),
+                "item": item
+            })
+    activity_df = pd.DataFrame(activity_list)
+
+    mood_list = []
+    for item in data.get("symptoms", []):
+        if "date" in item and item.get("type") == mood_field and "severity" in item:
+            mood_list.append({
+                "date": pd.to_datetime(item["date"]),
+                "value": item["severity"]
+            })
+    mood_df = pd.DataFrame(mood_list)
+
+    return activity_df, mood_df
+
+def prepare_medication_and_mood_data(data, mood_field):
+    if not data or "medications" not in data or "symptoms" not in data:
+        return pd.DataFrame(), pd.DataFrame()
+
+    medication_list = []
+    for item in data.get("medications", []):
+        if "date" in item:
+            medication_list.append({
+                "date": pd.to_datetime(item["date"]),
+                "item": item
+            })
+    medication_df = pd.DataFrame(medication_list)
+
+    mood_list = []
+    for item in data.get("symptoms", []):
+        if "date" in item and item.get("type") == mood_field and "severity" in item:
+            mood_list.append({
+                "date": pd.to_datetime(item["date"]),
+                "value": item["severity"]
+            })
+    mood_df = pd.DataFrame(mood_list)
+
+    return medication_df, mood_df
+
+def prepare_symptom_and_mood_data(data, mood_field):
+    if not data or "symptoms" not in data:
+        return pd.DataFrame(), pd.DataFrame()
+
+    symptom_list = []
+    for item in data.get("symptoms", []):
+        if "date" in item:
+            symptom_list.append({
+                "date": pd.to_datetime(item["date"]),
+                "item": item
+            })
+    symptom_df = pd.DataFrame(symptom_list)
+
+    mood_list = []
+    for item in data.get("symptoms", []):
+        if "date" in item and item.get("type") == mood_field and "severity" in item:
+            mood_list.append({
+                "date": pd.to_datetime(item["date"]),
+                "value": item["severity"]
+            })
+    mood_df = pd.DataFrame(mood_list)
+
+    return symptom_df, mood_df
+
+# פונקציות יצירת תובנות בסיסיות
+def generate_activity_insights(activity_df, mood_df):
+    insights = "🏃 Activity Insights:\n"
+
+    if activity_df.empty or mood_df.empty:
+        return insights + "Not enough data to analyze activities and mood correlation.\n"
+
+    combined_data = []
+    for _, mood_row in mood_df.iterrows():
+        mood_date = mood_row["date"]
+        mood_value = mood_row["value"]
+        same_day_activities = activity_df[activity_df["date"].dt.date == mood_date.date()]
+        for _, act_row in same_day_activities.iterrows():
+            activity_item = act_row["item"]
+            time_diff = 24
+            if "startTime" in activity_item:
+                try:
+                    act_time = pd.to_datetime(activity_item["startTime"])
+                    time_diff = abs((mood_date - act_time).total_seconds() / 3600)
+                except:
+                    pass
+            if time_diff <= 6:
+                activity_type = activity_item.get("activityName", "Unknown")
+                duration = activity_item.get("duration", 0)
+                intensity = activity_item.get("intensity", 0)
+                combined_data.append({
+                    "mood_value": mood_value,
+                    "activity_type": activity_type,
+                    "duration": duration,
+                    "intensity": intensity,
+                    "time_diff": time_diff
+                })
+
+    if not combined_data or len(combined_data) < 2:
+        return insights + "Not enough close-timing data.\n"
+
+    analysis_df = pd.DataFrame(combined_data)
+    insights += "• Activity type impact on mood:\n"
+    activity_types = analysis_df["activity_type"].unique()
+    for activity in activity_types:
+        act_mood = analysis_df[analysis_df["activity_type"] == activity]["mood_value"].mean()
+        overall_mood = mood_df["value"].mean()
+        diff = act_mood - overall_mood
+        if not np.isnan(act_mood):
+            count = len(analysis_df[analysis_df["activity_type"] == activity])
+            direction = "higher" if diff > 0 else "lower"
+            if abs(diff) >= 0.5:
+                insights += f"  - {activity} ({count} times): Mood tends to be {abs(round(diff, 1))} points {direction} than average.\n"
+            else:
+                insights += f"  - {activity} ({count} times): Mood similar to average.\n"
+
+    return insights
+
+def generate_medication_insights(medication_df, mood_df):
+    insights = "💊 Medication Insights:\n"
+
+    if medication_df.empty or mood_df.empty:
+        return insights + "Not enough data to analyze medications.\n"
+
+    combined_data = []
+    for _, mood_row in mood_df.iterrows():
+        mood_date = mood_row["date"]
+        mood_value = mood_row["value"]
+        same_day_meds = medication_df[medication_df["date"].dt.date == mood_date.date()]
+        for _, med_row in same_day_meds.iterrows():
+            med_item = med_row["item"]
+            time_diff = 24
+            if "timeTaken" in med_item:
+                try:
+                    med_time = pd.to_datetime(med_item["timeTaken"])
+                    time_diff = abs((mood_date - med_time).total_seconds() / 3600)
+                except:
+                    pass
+            if time_diff <= 6:
+                med_name = med_item.get("name", "Unknown")
+                dosage = med_item.get("quantity", 0)
+                combined_data.append({
+                    "mood_value": mood_value,
+                    "medication": med_name,
+                    "dosage": dosage,
+                    "time_diff": time_diff
+                })
+
+    if not combined_data or len(combined_data) < 2:
+        return insights + "Not enough close-timing data.\n"
+
+    analysis_df = pd.DataFrame(combined_data)
+    insights += "• Medication impact on mood:\n"
+    medications = analysis_df["medication"].unique()
+    for med in medications:
+        med_mood = analysis_df[analysis_df["medication"] == med]["mood_value"].mean()
+        overall_mood = mood_df["value"].mean()
+        diff = med_mood - overall_mood
+        if not np.isnan(med_mood):
+            count = len(analysis_df[analysis_df["medication"] == med])
+            direction = "higher" if diff > 0 else "lower"
+            if abs(diff) >= 0.3:
+                insights += f"  - {med} ({count} times): Mood tends to be {abs(round(diff, 1))} points {direction}.\n"
+            else:
+                insights += f"  - {med} ({count} times): Mood similar to average.\n"
+
+    return insights
+
+def generate_symptom_insights(symptom_df, mood_df):
+    insights = "🩺 Symptom Insights:\n"
+
+    if symptom_df.empty or mood_df.empty:
+        return insights + "Not enough data to analyze symptoms.\n"
+
+    symptom_fields = set()
+    for _, row in symptom_df.iterrows():
+        item = row["item"]
+        for key in item.keys():
+            if key not in ["date", "notes", "id", "Parkinson's State", "My Mood", "Physical State", "type", "severity", "createdAt", "updatedAt", "__v", "_id", "userId"]:
+                symptom_fields.add(key)
+    symptom_fields = list(symptom_fields)
+
+    # הוסף גם את הסימפטומים שמופיעים בשדה type
+    for _, row in symptom_df.iterrows():
+        item = row["item"]
+        if "type" in item and item["type"] not in ["Parkinson's State", "My Mood", "Physical State"]:
+            symptom_fields.append(item["type"])
+    
+    # הסר כפילויות
+    symptom_fields = list(set(symptom_fields))
+
+    if not symptom_fields:
+        return insights + "No specific symptom fields detected.\n"
+
+    insights += "• Symptom impact on mood:\n"
+    date_to_mood = {row["date"].date(): row["value"] for _, row in mood_df.iterrows()}
+
+    for symptom in symptom_fields:
+        symptom_present_moods = []
+        symptom_absent_moods = []
+        for _, row in symptom_df.iterrows():
+            date = row["date"].date()
+            item = row["item"]
+            if date in date_to_mood:
+                mood_value = date_to_mood[date]
+                symptom_present = False
+                # בדוק אם הסימפטום מופיע כשדה
+                if symptom in item and item[symptom]:
+                    symptom_present = True
+                # בדוק אם הסימפטום מופיע כערך בשדה type
+                if "type" in item and item["type"] == symptom:
+                    symptom_present = True
+                
+                if symptom_present:
+                    symptom_present_moods.append(mood_value)
+                    else:
+                    symptom_absent_moods.append(mood_value)
+                    
+        if symptom_present_moods and symptom_absent_moods:
+            present_avg = np.mean(symptom_present_moods)
+            absent_avg = np.mean(symptom_absent_moods)
+            diff = present_avg - absent_avg
+            direction = "higher" if diff > 0 else "lower"
+            if abs(diff) >= 0.3:
+                insights += f"  - {symptom}: Mood {direction} by {round(abs(diff),1)} points when present.\n"
+            else:
+                insights += f"  - {symptom}: No strong mood impact.\n"
+
+    return insights
+
+# פונקציות ניתוח מתקדמות
+def analyze_activity_patterns(data, mood_field):
+    if not data or "activities" not in data or "symptoms" not in data:
+        return "Not enough data for activity pattern analysis."
     
     try:
-        # הכן נתונים לאשכול
-        nutrition_data = []
-        for item in data["nutritions"]:
-            if "nutritionalValues" in item and "date" in item:
-                nutrition_data.append({
+        # חילוץ נתוני פעילות
+        activity_data = []
+        for item in data.get("activities", []):
+            if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
+                # וודא שהשם המדויק של הפעילות נלקח מהשדה הנכון
+                activity_name = item.get("activityName", "")
+                if not activity_name or len(activity_name) < 2:
+                    continue  # דלג על פעילויות ללא שם תקין
+                
+                activity_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "proteins": item["nutritionalValues"].get("proteins", 0),
-                    "fats": item["nutritionalValues"].get("fats", 0),
-                    "carbs": item["nutritionalValues"].get("carbohydrates", 0),
-                    "fiber": item["nutritionalValues"].get("dietaryFiber", 0),
-                    "food_name": item.get("foodName", "")
+                    "name": activity_name,
+                    "duration": item.get("duration", 0),
+                    "intensity": item.get("intensity", "Low"),
+                    "notes": item.get("notes", "")
                 })
         
-        # קבל נתוני מצב רוח
+        # קבל נתוני מצב רוח/סימפטום
         mood_data = []
         for item in data["symptoms"]:
             if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
@@ -396,97 +580,85 @@ def analyze_nutrition_clusters(data, mood_field):
                     "severity": item.get("severity", 0)
                 })
         
-        if len(nutrition_data) < 5 or len(mood_data) < 5:
-            return "Not enough data points for clustering analysis."
+        if len(activity_data) < 3 or len(mood_data) < 3:
+            return "Not enough data points for activity analysis."
         
         # צור DataFrames
-        nutrition_df = pd.DataFrame(nutrition_data)
+        activity_df = pd.DataFrame(activity_data)
         mood_df = pd.DataFrame(mood_data)
         
-        # צרף תזונה עם נתוני מצב רוח (תוך 3 שעות)
-        merged_data = []
-        for _, nutr_row in nutrition_df.iterrows():
-            nutr_date = nutr_row["date"]
-            # מצא את מדידת מצב הרוח הקרובה ביותר
-            closest_mood = None
-            min_diff = float('inf')
+        # המר עוצמה למספרי
+        intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
+        activity_df["intensity_score"] = activity_df["intensity"].map(lambda x: intensity_map.get(x, 1))
+        
+        # חשב ציון פעילות (משך * עוצמה)
+        activity_df["activity_score"] = activity_df["duration"] * activity_df["intensity_score"]
+        
+        # התאם פעילויות עם מצב רוח (תוך 6 שעות)
+        matched_data = []
+        
+        for _, act_row in activity_df.iterrows():
+            act_date = act_row["date"]
             
-            for _, mood_row in mood_df.iterrows():
-                mood_date = mood_row["date"]
-                diff = abs((nutr_date - mood_date).total_seconds() / 3600)  # שעות
+            # מצא מדידות מצב רוח אחרי הפעילות (תוך 6 שעות)
+            relevant_moods = mood_df[(mood_df["date"] >= act_date) & 
+                                    (mood_df["date"] <= act_date + pd.Timedelta(hours=6))]
+            
+            if not relevant_moods.empty:
+                # קח את ממוצע מצב הרוח אם ישנם מספר רשומות
+                avg_mood = relevant_moods["severity"].mean()
                 
-                if diff < min_diff and diff <= 3:  # תוך 3 שעות
-                    min_diff = diff
-                    closest_mood = mood_row["severity"]
-            
-            if closest_mood is not None:
-                nutr_dict = nutr_row.to_dict()
-                nutr_dict["mood"] = closest_mood
-                merged_data.append(nutr_dict)
+                matched_data.append({
+                    "date": act_date,
+                    "activity_name": act_row["name"],
+                    "duration": act_row["duration"],
+                    "intensity_score": act_row["intensity_score"],
+                    "activity_score": act_row["activity_score"],
+                    "mood_after": avg_mood
+                })
         
-        if len(merged_data) < 5:
-            return "Not enough matched data points for clustering."
+        if len(matched_data) < 3:
+            return "Not enough matched activity-mood data for analysis."
         
-        analysis_df = pd.DataFrame(merged_data)
+        matched_df = pd.DataFrame(matched_data)
         
-        # הכן מאפיינים לאשכול
-        features = ["proteins", "fats", "carbs", "fiber"]
-        X = analysis_df[features]
+        # קבץ לפי שם פעילות
+        activity_analysis = []
         
-        # נרמל מאפיינים
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+        for activity_name, group in matched_df.groupby("activity_name"):
+            if len(group) >= 2:  # לפחות 2 מופעים
+                # בדוק שם פעילות תקין
+                if not activity_name or len(activity_name) < 2:
+                    continue
+                
+                avg_duration = group["duration"].mean()
+                avg_score = group["activity_score"].mean()
+                avg_mood = group["mood_after"].mean()
+                
+                # מתאם בין ציון פעילות ומצב רוח (אם יש מספיק נקודות נתונים)
+                correlation = None
+                if len(group) >= 3:
+                    if group["activity_score"].std() > 0 and group["mood_after"].std() > 0:
+                        correlation, p_value = pearsonr(group["activity_score"], group["mood_after"])
+                        # אם הקורלציה לא מובהקת (p-value גבוה), אל תציג אותה
+                        if p_value > 0.2:
+                            correlation = None
+                
+                activity_analysis.append({
+                    "activity_name": activity_name,
+                    "count": len(group),
+                    "avg_duration": round(avg_duration, 1),
+                    "avg_mood_after": round(avg_mood, 2),
+                    "correlation": round(correlation, 3) if correlation is not None else None
+                })
         
-        # קבע מספר אשכולות אופטימלי (2-4)
-        silhouette_scores = []
-        for k in range(2, 5):
-            if len(X_scaled) > k:  # ודא שיש מספיק נקודות נתונים
-                kmeans = KMeans(n_clusters=k, random_state=42)
-                cluster_labels = kmeans.fit_predict(X_scaled)
-                silhouette_avg = silhouette_score(X_scaled, cluster_labels)
-                silhouette_scores.append((k, silhouette_avg))
+        # מיין לפי השפעת מצב רוח (הגבוה ביותר תחילה)
+        activity_analysis.sort(key=lambda x: x["avg_mood_after"], reverse=True)
         
-        if not silhouette_scores:
-            return "Not enough data for meaningful clusters."
-        
-        # בחר את מספר האשכולות הטוב ביותר
-        best_k = max(silhouette_scores, key=lambda x: x[1])[0]
-        
-        # אשכול סופי
-        kmeans = KMeans(n_clusters=best_k, random_state=42)
-        analysis_df["cluster"] = kmeans.fit_predict(X_scaled)
-        
-        # נתח אשכולות
-        cluster_results = []
-        for cluster_id in range(best_k):
-            cluster_data = analysis_df[analysis_df["cluster"] == cluster_id]
-            avg_mood = cluster_data["mood"].mean()
-            avg_proteins = cluster_data["proteins"].mean()
-            avg_fats = cluster_data["fats"].mean()
-            avg_carbs = cluster_data["carbs"].mean()
-            avg_fiber = cluster_data["fiber"].mean()
-            
-            cluster_results.append({
-                "cluster_id": cluster_id,
-                "count": len(cluster_data),
-                "avg_mood": round(avg_mood, 2),
-                "nutrition_profile": {
-                    "proteins": round(avg_proteins, 1),
-                    "fats": round(avg_fats, 1),
-                    "carbs": round(avg_carbs, 1),
-                    "fiber": round(avg_fiber, 1)
-                },
-                "common_foods": Counter(cluster_data["food_name"]).most_common(3)
-            })
-        
-        # מיין אשכולות לפי מצב רוח (הטוב ביותר לגרוע ביותר)
-        cluster_results.sort(key=lambda x: x["avg_mood"])
-        
-        return cluster_results
+        return activity_analysis
     except Exception as e:
-        return f"Error in cluster analysis: {str(e)}"
+        return f"Error in activity pattern analysis: {str(e)}"
 
-# מציאת חוקי אסוציאציה בין תרופות וסימפטומים
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
         return "Not enough data for medication pattern analysis."
@@ -505,11 +677,10 @@ def analyze_medication_patterns(data, mood_field):
         # קבל נתוני מצב רוח/סימפטום
         mood_data = []
         for item in data["symptoms"]:
-            if "date" in item and "type" in item and "severity" in item:
+            if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "type": item["type"],
-                    "severity": item["severity"]
+                    "severity": item.get("severity", 0)
                 })
         
         if len(med_data) < 5 or len(mood_data) < 5:
@@ -591,496 +762,58 @@ def analyze_medication_patterns(data, mood_field):
     except Exception as e:
         return f"Error in medication pattern analysis: {str(e)}"
 
-# ניתוח דפוסי פעילות
-def analyze_activity_patterns(data, mood_field):
-    if not data or "activities" not in data or "symptoms" not in data:
-        return "Not enough data for activity pattern analysis."
-    
-    try:
-        # חילוץ נתוני פעילות
-        activity_data = []
-        for item in data.get("activities", []):
-            if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
-                activity_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "name": item["activityName"],
-                    "duration": item.get("duration", 0),
-                    "intensity": item.get("intensity", "Low"),
-                    "notes": item.get("notes", "")
-                })
-        
-        # קבל נתוני מצב רוח/סימפטום
-        mood_data = []
-        for item in data["symptoms"]:
-            if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
-                mood_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "severity": item.get("severity", 0)
-                })
-        
-        if len(activity_data) < 5 or len(mood_data) < 5:
-            return "Not enough data points for activity analysis."
-        
-        # צור DataFrames
-        activity_df = pd.DataFrame(activity_data)
-        mood_df = pd.DataFrame(mood_data)
-        
-        # המר עוצמה למספרי
-        intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
-        activity_df["intensity_score"] = activity_df["intensity"].map(lambda x: intensity_map.get(x, 1))
-        
-        # חשב ציון פעילות (משך * עוצמה)
-        activity_df["activity_score"] = activity_df["duration"] * activity_df["intensity_score"]
-        
-        # התאם פעילויות עם מצב רוח (תוך 6 שעות)
-        matched_data = []
-        
-        for _, act_row in activity_df.iterrows():
-            act_date = act_row["date"]
-            
-            # מצא מדידות מצב רוח אחרי הפעילות (תוך 6 שעות)
-            relevant_moods = mood_df[(mood_df["date"] >= act_date) & 
-                                    (mood_df["date"] <= act_date + pd.Timedelta(hours=6))]
-            
-            if not relevant_moods.empty:
-                # קח את ממוצע מצב הרוח אם ישנם מספר רשומות
-                avg_mood = relevant_moods["severity"].mean()
-                
-                matched_data.append({
-                    "date": act_date,
-                    "activity_name": act_row["name"],
-                    "duration": act_row["duration"],
-                    "intensity": act_row["intensity"],
-                    "activity_score": act_row["activity_score"],
-                    "mood_after": avg_mood
-                })
-        
-        if len(matched_data) < 3:
-            return "Not enough matched activity-mood data for analysis."
-        
-        matched_df = pd.DataFrame(matched_data)
-        
-        # קבץ לפי שם פעילות
-        activity_analysis = []
-        
-        for activity_name, group in matched_df.groupby("activity_name"):
-            if len(group) >= 2:  # לפחות 2 מופעים
-                avg_duration = group["duration"].mean()
-                avg_score = group["activity_score"].mean()
-                avg_mood = group["mood_after"].mean()
-                
-                # מתאם בין ציון פעילות ומצב רוח (אם יש מספיק נקודות נתונים)
-                correlation = None
-                if len(group) >= 3:
-                    if group["activity_score"].std() > 0 and group["mood_after"].std() > 0:
-                        correlation, _ = pearsonr(group["activity_score"], group["mood_after"])
-                
-                activity_analysis.append({
-                    "activity_name": activity_name,
-                    "count": len(group),
-                    "avg_duration": round(avg_duration, 1),
-                    "avg_mood_after": round(avg_mood, 2),
-                    "correlation": round(correlation, 3) if correlation is not None else None
-                })
-        
-        # מיין לפי השפעת מצב רוח (הגבוה ביותר תחילה)
-        activity_analysis.sort(key=lambda x: x["avg_mood_after"], reverse=True)
-        
-        return activity_analysis
-    except Exception as e:
-        return f"Error in activity pattern analysis: {str(e)}"
-
-# יצירת לוח מחוונים מקיף לניתוח דפוסים
-def create_pattern_dashboard(data):
-    if not data:
-        return "No data available for analysis."
-    
-    try:
-        # הגדר שדות מצב רוח לניתוח
-        mood_fields = ["Parkinson's State", "Physical State", "My Mood"]
-        dashboard_data = {}
-        
-        # עבור כל שדה מצב רוח/מצב
-        for mood_field in mood_fields:
-            field_results = {}
-            
-            # נתח דפוסי תזונה
-            nutrition_clusters = analyze_nutrition_clusters(data, mood_field)
-            field_results["nutrition_patterns"] = nutrition_clusters
-            
-            # נתח דפוסי תרופות
-            medication_patterns = analyze_medication_patterns(data, mood_field)
-            field_results["medication_patterns"] = medication_patterns
-            
-            # נתח דפוסי פעילות
-            activity_patterns = analyze_activity_patterns(data, mood_field)
-            field_results["activity_patterns"] = activity_patterns
-            
-            # חלץ דפוסי זמן עבור כל סוג נתונים
-            for field_type in ["nutritions", "medications", "activities"]:
-                time_patterns = extract_time_patterns(data, field_type, mood_field)
-                field_results[f"{field_type}_time_patterns"] = time_patterns
-            
-            dashboard_data[mood_field] = field_results
-        
-        return dashboard_data
-    except Exception as e:
-        return f"Error creating dashboard: {str(e)}"
-
-# סכם תובנות בפורמט טקסט
-def summarize_insights(dashboard_data):
-    if not isinstance(dashboard_data, dict):
-        return "No data available for insights."
-    
-    insights = []
-    
-    try:
-        # עבד כל שדה מצב רוח
-        for mood_field, field_data in dashboard_data.items():
-            insights.append(f"## Insights for {mood_field}:")
-            
-            # 1. תובנות תזונה
-            nutrition_patterns = field_data.get("nutrition_patterns", [])
-            if isinstance(nutrition_patterns, list) and len(nutrition_patterns) > 0:
-                insights.append("\n### Nutrition Patterns:")
-                
-                # מיין אשכולות לפי השפעת מצב רוח
-                best_clusters = sorted(nutrition_patterns, key=lambda x: x.get("avg_mood", 0))
-                
-                if len(best_clusters) > 0:
-                    best_cluster = best_clusters[0]  # אשכול עם מצב רוח הטוב ביותר
-                    worst_cluster = best_clusters[-1] if len(best_clusters) > 1 else None  # אשכול עם מצב רוח הגרוע ביותר
-                    
-                    if best_cluster:
-                        foods = ", ".join([f"{food[0]} ({food[1]} times)" for food in best_cluster.get("common_foods", [])[:2]])
-                        insights.append(f"- **Beneficial Nutrition Profile**: Foods high in "
-                                      f"Protein: {best_cluster.get('nutrition_profile', {}).get('proteins', 0)}g, "
-                                      f"Fiber: {best_cluster.get('nutrition_profile', {}).get('fiber', 0)}g "
-                                      f"(like {foods}) associated with better {mood_field} ratings.")
-                    
-                    if worst_cluster:
-                        foods = ", ".join([f"{food[0]} ({food[1]} times)" for food in worst_cluster.get("common_foods", [])[:2]])
-                        insights.append(f"- **Less Beneficial Nutrition**: Foods with "
-                                      f"Fat: {worst_cluster.get('nutrition_profile', {}).get('fats', 0)}g, "
-                                      f"Carbs: {worst_cluster.get('nutrition_profile', {}).get('carbs', 0)}g "
-                                      f"(like {foods}) associated with lower {mood_field} ratings.")
-            
-            # 2. תובנות תרופות
-            medication_patterns = field_data.get("medication_patterns", [])
-            if isinstance(medication_patterns, list) and len(medication_patterns) > 0:
-                insights.append("\n### Medication Patterns:")
-                
-                for idx, rule in enumerate(medication_patterns[:3]):
-                    antecedents = list(rule.get("antecedents", []))
-                    consequents = list(rule.get("consequents", []))
-                    
-                    # חלץ תרופות ורמות מצב רוח
-                    meds = []
-                    mood_level = None
-                    
-                    for item in antecedents + consequents:
-                        if isinstance(item, str):
-                            if item.startswith(f"{mood_field}_Level_"):
-                                mood_level = item.replace(f"{mood_field}_Level_", "Rating: ")
-                            else:
-                                meds.append(item)
-                    
-                    if meds and mood_level:
-                        meds_str = ", ".join(meds)
-                        insights.append(f"- **Medication Association**: {meds_str} associated with {mood_field} {mood_level} "
-                                      f"(Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})")
-            
-            # 3. תובנות פעילות
-            activity_patterns = field_data.get("activity_patterns", [])
-            if isinstance(activity_patterns, list) and len(activity_patterns) > 0:
-                insights.append("\n### Activity Patterns:")
-                
-                for idx, activity in enumerate(activity_patterns[:3]):
-                    insights.append(f"- **{activity.get('activity_name', 'Activity')}**: "
-                                  f"Average duration {activity.get('avg_duration', 0)} minutes, "
-                                  f"associated with {mood_field} rating of {activity.get('avg_mood_after', 0):.1f}/5 afterward.")
-                    
-                    if activity.get('correlation') is not None:
-                        corr = activity.get('correlation')
-                        if abs(corr) > 0.3:
-                            direction = "positive" if corr > 0 else "negative"
-                            strength = "strong" if abs(corr) > 0.7 else "moderate"
-                            insights.append(f"  - {strength.capitalize()} {direction} correlation ({corr:.2f}) between activity intensity and {mood_field}")
-            
-            # 4. תובנות דפוסי זמן
-            for field_type in ["nutritions", "medications", "activities"]:
-                time_patterns = field_data.get(f"{field_type}_time_patterns", {})
-                
-                if time_patterns and isinstance(time_patterns, dict):
-                    morning_mood = time_patterns.get("morning_mood")
-                    afternoon_mood = time_patterns.get("afternoon_mood")
-                    evening_mood = time_patterns.get("evening_mood")
-                    
-                    if morning_mood is not None and afternoon_mood is not None and evening_mood is not None:
-                        best_time = "morning" if morning_mood >= max(afternoon_mood, evening_mood) else "afternoon" if afternoon_mood >= max(morning_mood, evening_mood) else "evening"
-                        
-                        insights.append(f"\n- **{field_type.capitalize()} Timing**: Best {mood_field} ratings observed in the {best_time} "
-                                      f"(M: {morning_mood:.1f}, A: {afternoon_mood:.1f}, E: {evening_mood:.1f})")
-        
-        # צרף את כל התובנות עם קווים חדשים
-        return "\n".join(insights)
-    except Exception as e:
-        return f"Error generating insights: {str(e)}"
-
-# הכנת נתונים לממשק הפשוט
-def prepare_activity_and_mood_data(data, mood_field):
-    if not data or "activities" not in data or "symptoms" not in data:
-        return pd.DataFrame(), pd.DataFrame()
-
-    activity_list = []
-    for item in data.get("activities", []):
-        if "date" in item:
-            activity_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "item": item
-            })
-    activity_df = pd.DataFrame(activity_list)
-
-    mood_list = []
-    for item in data.get("symptoms", []):
-        if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
-            mood_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "value": item["severity"]
-            })
-    mood_df = pd.DataFrame(mood_list)
-
-    return activity_df, mood_df
-
-def prepare_medication_and_mood_data(data, mood_field):
-    if not data or "medications" not in data or "symptoms" not in data:
-        return pd.DataFrame(), pd.DataFrame()
-
-    medication_list = []
-    for item in data.get("medications", []):
-        if "date" in item:
-            medication_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "item": item
-            })
-    medication_df = pd.DataFrame(medication_list)
-
-    mood_list = []
-    for item in data.get("symptoms", []):
-        if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
-            mood_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "value": item["severity"]
-            })
-    mood_df = pd.DataFrame(mood_list)
-
-    return medication_df, mood_df
-
-def prepare_symptom_and_mood_data(data, mood_field):
-    if not data or "symptoms" not in data:
-        return pd.DataFrame(), pd.DataFrame()
-
-    symptom_list = []
-    for item in data.get("symptoms", []):
-        if "date" in item:
-            symptom_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "item": item
-            })
-    symptom_df = pd.DataFrame(symptom_list)
-
-    mood_list = []
-    for item in data.get("symptoms", []):
-        if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
-            mood_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "value": item["severity"]
-            })
-    mood_df = pd.DataFrame(mood_list)
-
-    return symptom_df, mood_df
-
-# פונקציות יצירת תובנות לממשק הפשוט
-def generate_activity_insights(activity_df, mood_df):
-    insights = "🏃 Activity Insights:\n"
-
-    if activity_df.empty or mood_df.empty:
-        return insights + "Not enough data to analyze activities and mood correlation.\n"
-
-    combined_data = []
-    for _, mood_row in mood_df.iterrows():
-        mood_date = mood_row["date"]
-        mood_value = mood_row["value"]
-        same_day_activities = activity_df[activity_df["date"].dt.date == mood_date.date()]
-        for _, act_row in same_day_activities.iterrows():
-            activity_item = act_row["item"]
-            time_diff = 24
-            if "startTime" in activity_item:
-                try:
-                    act_time = pd.to_datetime(activity_item["startTime"])
-                    time_diff = abs((mood_date - act_time).total_seconds() / 3600)
-                except:
-                    pass
-            if time_diff <= 6:
-                activity_type = activity_item.get("activityType", "Unknown")
-                duration = activity_item.get("duration", 0)
-                intensity = activity_item.get("intensity", 0)
-                combined_data.append({
-                    "mood_value": mood_value,
-                    "activity_type": activity_type,
-                    "duration": duration,
-                    "intensity": intensity,
-                    "time_diff": time_diff
-                })
-
-    if not combined_data or len(combined_data) < 2:
-        return insights + "Not enough close-timing data.\n"
-
-    analysis_df = pd.DataFrame(combined_data)
-    insights += "• Activity type impact on mood:\n"
-    activity_types = analysis_df["activity_type"].unique()
-    for activity in activity_types:
-        act_mood = analysis_df[analysis_df["activity_type"] == activity]["mood_value"].mean()
-        overall_mood = mood_df["value"].mean()
-        diff = act_mood - overall_mood
-        if not np.isnan(act_mood):
-            count = len(analysis_df[analysis_df["activity_type"] == activity])
-            direction = "higher" if diff > 0 else "lower"
-            if abs(diff) >= 0.5:
-                insights += f"  - {activity} ({count} times): Mood tends to be {abs(round(diff, 1))} points {direction} than average.\n"
-            else:
-                insights += f"  - {activity} ({count} times): Mood similar to average.\n"
-
-    return insights
-
-def generate_medication_insights(medication_df, mood_df):
-    insights = "💊 Medication Insights:\n"
-
-    if medication_df.empty or mood_df.empty:
-        return insights + "Not enough data to analyze medications.\n"
-
-    combined_data = []
-    for _, mood_row in mood_df.iterrows():
-        mood_date = mood_row["date"]
-        mood_value = mood_row["value"]
-        same_day_meds = medication_df[medication_df["date"].dt.date == mood_date.date()]
-        for _, med_row in same_day_meds.iterrows():
-            med_item = med_row["item"]
-            time_diff = 24
-            if "timeTaken" in med_item:
-                try:
-                    med_time = pd.to_datetime(med_item["timeTaken"])
-                    time_diff = abs((mood_date - med_time).total_seconds() / 3600)
-                except:
-                    pass
-            if time_diff <= 6:
-                med_name = med_item.get("medicationName", "Unknown")
-                dosage = med_item.get("dosage", 0)
-                combined_data.append({
-                    "mood_value": mood_value,
-                    "medication": med_name,
-                    "dosage": dosage,
-                    "time_diff": time_diff
-                })
-
-    if not combined_data or len(combined_data) < 2:
-        return insights + "Not enough close-timing data.\n"
-
-    analysis_df = pd.DataFrame(combined_data)
-    insights += "• Medication impact on mood:\n"
-    medications = analysis_df["medication"].unique()
-    for med in medications:
-        med_mood = analysis_df[analysis_df["medication"] == med]["mood_value"].mean()
-        overall_mood = mood_df["value"].mean()
-        diff = med_mood - overall_mood
-        if not np.isnan(med_mood):
-            count = len(analysis_df[analysis_df["medication"] == med])
-            direction = "higher" if diff > 0 else "lower"
-            if abs(diff) >= 0.3:
-                insights += f"  - {med} ({count} times): Mood tends to be {abs(round(diff, 1))} points {direction}.\n"
-            else:
-                insights += f"  - {med} ({count} times): Mood similar to average.\n"
-
-    return insights
-
-def generate_symptom_insights(symptom_df, mood_df):
-    insights = "🩺 Symptom Insights:\n"
-
-    if symptom_df.empty or mood_df.empty:
-        return insights + "Not enough data to analyze symptoms.\n"
-
-    symptom_fields = set()
-    for _, row in symptom_df.iterrows():
-        item = row["item"]
-        for key in item.keys():
-            if key not in ["date", "notes", "id", "Parkinson's State", "My Mood", "Physical State"]:
-                symptom_fields.add(key)
-    symptom_fields = list(symptom_fields)
-
-    if not symptom_fields:
-        return insights + "No specific symptom fields detected.\n"
-
-    insights += "• Symptom impact on mood:\n"
-    date_to_mood = {row["date"].date(): row["value"] for _, row in mood_df.iterrows()}
-
-    for symptom in symptom_fields:
-        symptom_present_moods = []
-        symptom_absent_moods = []
-        for _, row in symptom_df.iterrows():
-            date = row["date"].date()
-            item = row["item"]
-            if date in date_to_mood:
-                mood_value = date_to_mood[date]
-                if symptom in item and item[symptom]:
-                    symptom_present_moods.append(mood_value)
-                else:
-                    symptom_absent_moods.append(mood_value)
-        if symptom_present_moods and symptom_absent_moods:
-            present_avg = np.mean(symptom_present_moods)
-            absent_avg = np.mean(symptom_absent_moods)
-            diff = present_avg - absent_avg
-            direction = "higher" if diff > 0 else "lower"
-            if abs(diff) >= 0.3:
-                insights += f"  - {symptom}: Mood {direction} by {round(abs(diff),1)} points when present.\n"
-            else:
-                insights += f"  - {symptom}: No strong mood impact.\n"
-
-    return insights
-
-# פונקציות עיבוד קובץ
-def upload_json(file_obj):
-    global translated_data_global
-    if file_obj is None:
-        return None, "❌ No file uploaded."
-    try:
-        # נשתמש בפונקציה המקורית שכוללת תרגום וניתוח תזונתי
-        processed_file, status = upload_and_process(file_obj)
-        return processed_file, status
-    except Exception as e:
-        return None, f"❌ Error: {str(e)}"
-
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
+        
+    # נתח את הפעילויות בצורה בסיסית (לפי הממשק הפשוט)
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
     basic_insights = generate_activity_insights(activity_df, mood_df)
     
-    # שלב את התובנות הבסיסיות עם הניתוח המתקדם
+    # אם אין מספיק נתונים, החזר את הניתוח הבסיסי
+    if "Not enough data" in basic_insights or "Not enough close-timing data" in basic_insights:
+        return basic_insights
+    
+    # נתח את הפעילויות בצורה מתקדמת
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
     
+    # אם יש שגיאה או אין מספיק נתונים, החזר רק את הניתוח הבסיסי
     if isinstance(advanced_analysis, str):
+        if "Not enough" in advanced_analysis:
+            return basic_insights
         return basic_insights + "\n\n" + advanced_analysis
     
+    # אם אין פעילויות לניתוח, החזר רק את הניתוח הבסיסי
+    if not advanced_analysis:
+        return basic_insights
+    
+    # בנה תובנות מפורטות על סמך הניתוח המתקדם
     detailed_insights = "\n\nDetailed Activity Analysis:\n"
     for activity in advanced_analysis[:3]:
-        detailed_insights += f"- {activity.get('activity_name')}: {activity.get('avg_mood_after'):.1f}/5 rating after {activity.get('count')} activities\n"
-        if activity.get('correlation') is not None and abs(activity.get('correlation', 0)) > 0.3:
+        # וודא שיש שם פעילות תקין
+        activity_name = activity.get('activity_name', '')
+        if not activity_name or len(activity_name) < 2 or activity_name == "Unknown":
+            continue
+            
+        # וודא שיש לפחות 2 מופעים של הפעילות
+        if activity.get('count', 0) < 2:
+            continue
+            
+        detailed_insights += f"- {activity_name}: {activity.get('avg_mood_after', 0):.1f}/5 rating after {activity.get('count')} activities\n"
+        
+        # רק אם יש קורלציה משמעותית וגם לפחות 3 מופעים, הצג אותה
+        if activity.get('correlation') is not None and abs(activity.get('correlation', 0)) > 0.3 and activity.get('count', 0) >= 3:
             corr = activity.get('correlation')
             direction = "positive" if corr > 0 else "negative"
-            detailed_insights += f"  (Shows {direction} correlation of {corr:.2f} with intensity)\n"
+            explanation = "higher intensity = better mood" if corr > 0 else "lower intensity = better mood"
+            detailed_insights += f"  ({explanation}, correlation: {corr:.2f})\n"
     
-    return basic_insights + detailed_insights
+    # רק אם נוספו תובנות מפורטות מעבר לכותרת, החזר אותן
+    if detailed_insights != "\n\nDetailed Activity Analysis:\n":
+        return basic_insights + detailed_insights
+    else:
+        return basic_insights
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
@@ -1092,6 +825,8 @@ def medication_analysis_summary(mood_field):
     advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
     
     if isinstance(advanced_analysis, str):
+        if "Not enough" in advanced_analysis or "No significant" in advanced_analysis:
+            return basic_insights
         return basic_insights + "\n\n" + advanced_analysis
     
     detailed_insights = "\n\nDetailed Medication Patterns:\n"
@@ -1114,13 +849,28 @@ def medication_analysis_summary(mood_field):
             detailed_insights += f"- {meds_str} associated with {mood_level}\n"
             detailed_insights += f"  (Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})\n"
     
-    return basic_insights + detailed_insights
+    if detailed_insights != "\n\nDetailed Medication Patterns:\n":
+        return basic_insights + detailed_insights
+    else:
+        return basic_insights
 
 def symptom_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
     return generate_symptom_insights(symptom_df, mood_df)
+
+# פונקציות עיבוד קובץ
+def upload_json(file_obj):
+    global translated_data_global
+    if file_obj is None:
+        return None, "❌ No file uploaded."
+    try:
+        # נשתמש בפונקציה המקורית שכוללת תרגום וניתוח תזונתי
+        processed_file, status = upload_and_process(file_obj)
+        return processed_file, status
+    except Exception as e:
+        return None, f"❌ Error: {str(e)}"
 
 # יצירת האפליקציה עם העיצוב החדש
 with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
@@ -1162,5 +912,3 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.launch(server_name='0.0.0.0', server_port=port)
-    
-    
