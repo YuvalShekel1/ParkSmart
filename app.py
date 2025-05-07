@@ -533,7 +533,7 @@ def generate_symptom_insights(symptom_df, mood_df):
                 
                 if symptom_present:
                     symptom_present_moods.append(mood_value)
-                    else:
+                else:
                     symptom_absent_moods.append(mood_value)
                     
         if symptom_present_moods and symptom_absent_moods:
