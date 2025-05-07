@@ -388,8 +388,36 @@ def generate_activity_insights(activity_df, mood_df):
     insights = "🏃 Activity Insights:\n"
 
     if activity_df.empty or mood_df.empty:
-        return insights + "Not enough data to analyze activities and mood correlation.\n"
+        return insights + "• No activities data available. Try recording more activities to see insights.\n• Try recording mood ratings before and after physical activities for better analysis.\n"
 
+    # ניתוח פעילויות גם ללא תזמון מדויק
+    all_activities = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown"))
+    activity_counts = all_activities.value_counts()
+    
+    insights += "• Activity frequency overview:\n"
+    for activity, count in activity_counts.items():
+        if activity != "Unknown" and activity:
+            insights += f"  - {activity}: {count} times\n"
+    
+    # גם אם אין מספיק נתונים מסונכרנים, נוכל לתת המלצות כלליות
+    insights += "\n• General activity observations:\n"
+    
+    # ניתוח עוצמת הפעילות אם קיימת
+    if 'intensity' in [list(item.keys()) for item in activity_df["item"]]:
+        intensity_counts = activity_df["item"].apply(lambda x: x.get("intensity", "Unknown")).value_counts()
+        insights += "  - Intensity distribution: "
+        for intensity, count in intensity_counts.items():
+            if intensity != "Unknown":
+                insights += f"{intensity} ({count}), "
+        insights = insights.rstrip(", ") + "\n"
+    
+    # נוסיף ניתוח של בסיס ממוצע משך פעילות
+    if 'duration' in [list(item.keys()) for item in activity_df["item"]]:
+        avg_duration = activity_df["item"].apply(lambda x: float(x.get("duration", 0))).mean()
+        if not np.isnan(avg_duration):
+            insights += f"  - Average activity duration: {round(avg_duration)} minutes\n"
+    
+    # ניתוח המתאם בין פעילויות למצב רוח
     combined_data = []
     for _, mood_row in mood_df.iterrows():
         mood_date = mood_row["date"]
@@ -416,23 +444,29 @@ def generate_activity_insights(activity_df, mood_df):
                     "time_diff": time_diff
                 })
 
-    if not combined_data or len(combined_data) < 2:
-        return insights + "Not enough close-timing data.\n"
+    # גם אם יש מעט נתונים, ננסה לספק תובנות
+    if combined_data:
+        analysis_df = pd.DataFrame(combined_data)
+        insights += "\n• Recorded activities impact on mood:\n"
+        activity_types = analysis_df["activity_type"].unique()
+        for activity in activity_types:
+            if activity != "Unknown" and activity:
+                act_mood = analysis_df[analysis_df["activity_type"] == activity]["mood_value"].mean()
+                overall_mood = mood_df["value"].mean()
+                if not np.isnan(act_mood):
+                    count = len(analysis_df[analysis_df["activity_type"] == activity])
+                    direction = "higher" if act_mood > overall_mood else "lower"
+                    diff = abs(act_mood - overall_mood)
+                    if diff >= 0.3:
+                        insights += f"  - {activity} ({count} times): Mood tends to be {round(diff, 1)} points {direction} than average.\n"
+                    else:
+                        insights += f"  - {activity} ({count} times): Average mood rating {round(act_mood, 1)}\n"
 
-    analysis_df = pd.DataFrame(combined_data)
-    insights += "• Activity type impact on mood:\n"
-    activity_types = analysis_df["activity_type"].unique()
-    for activity in activity_types:
-        act_mood = analysis_df[analysis_df["activity_type"] == activity]["mood_value"].mean()
-        overall_mood = mood_df["value"].mean()
-        diff = act_mood - overall_mood
-        if not np.isnan(act_mood):
-            count = len(analysis_df[analysis_df["activity_type"] == activity])
-            direction = "higher" if diff > 0 else "lower"
-            if abs(diff) >= 0.5:
-                insights += f"  - {activity} ({count} times): Mood tends to be {abs(round(diff, 1))} points {direction} than average.\n"
-            else:
-                insights += f"  - {activity} ({count} times): Mood similar to average.\n"
+    # נוסיף המלצות כלליות
+    insights += "\n• Recommendations to improve tracking:\n"
+    insights += "  - Record mood shortly before and after activities\n"
+    insights += "  - Try varying activity intensity and duration to find optimal levels\n"
+    insights += "  - Regular activities can help stabilize mood and manage symptoms\n"
 
     return insights
 
@@ -440,8 +474,30 @@ def generate_medication_insights(medication_df, mood_df):
     insights = "💊 Medication Insights:\n"
 
     if medication_df.empty or mood_df.empty:
-        return insights + "Not enough data to analyze medications.\n"
+        return insights + "• No medication data available. Try recording medications and mood ratings to see insights.\n• Try recording mood ratings before and after taking medications for better analysis.\n"
 
+    # ניתוח תרופות גם ללא תזמון מדויק
+    all_medications = medication_df["item"].apply(lambda x: x.get("name", "Unknown"))
+    medication_counts = all_medications.value_counts()
+    
+    insights += "• Medication frequency overview:\n"
+    for medication, count in medication_counts.items():
+        if medication != "Unknown" and medication:
+            insights += f"  - {medication}: {count} times\n"
+    
+    # אם יש נתוני מינון, נוסיף אותם
+    if 'quantity' in [list(item.keys()) for item in medication_df["item"]]:
+        insights += "\n• Medication dosages:\n"
+        for medication in medication_counts.index:
+            if medication != "Unknown" and medication:
+                med_items = medication_df[medication_df["item"].apply(lambda x: x.get("name", "") == medication)]
+                quantities = med_items["item"].apply(lambda x: float(x.get("quantity", 0)))
+                if not quantities.empty and quantities.std() > 0:
+                    insights += f"  - {medication}: Varied between {quantities.min()} and {quantities.max()}\n"
+                elif not quantities.empty:
+                    insights += f"  - {medication}: Consistent dosage of {quantities.mean()}\n"
+    
+    # ניתוח המתאם בין תרופות למצב רוח
     combined_data = []
     for _, mood_row in mood_df.iterrows():
         mood_date = mood_row["date"]
@@ -466,23 +522,29 @@ def generate_medication_insights(medication_df, mood_df):
                     "time_diff": time_diff
                 })
 
-    if not combined_data or len(combined_data) < 2:
-        return insights + "Not enough close-timing data.\n"
+    # גם אם יש מעט נתונים, ננסה לספק תובנות
+    if combined_data:
+        analysis_df = pd.DataFrame(combined_data)
+        insights += "\n• Recorded medications impact on mood:\n"
+        medications = analysis_df["medication"].unique()
+        for med in medications:
+            if med != "Unknown" and med:
+                med_mood = analysis_df[analysis_df["medication"] == med]["mood_value"].mean()
+                overall_mood = mood_df["value"].mean()
+                if not np.isnan(med_mood):
+                    count = len(analysis_df[analysis_df["medication"] == med])
+                    direction = "higher" if med_mood > overall_mood else "lower"
+                    diff = abs(med_mood - overall_mood)
+                    if diff >= 0.3:
+                        insights += f"  - {med} ({count} times): Mood tends to be {round(diff, 1)} points {direction} than average.\n"
+                    else:
+                        insights += f"  - {med} ({count} times): Average mood rating {round(med_mood, 1)}\n"
 
-    analysis_df = pd.DataFrame(combined_data)
-    insights += "• Medication impact on mood:\n"
-    medications = analysis_df["medication"].unique()
-    for med in medications:
-        med_mood = analysis_df[analysis_df["medication"] == med]["mood_value"].mean()
-        overall_mood = mood_df["value"].mean()
-        diff = med_mood - overall_mood
-        if not np.isnan(med_mood):
-            count = len(analysis_df[analysis_df["medication"] == med])
-            direction = "higher" if diff > 0 else "lower"
-            if abs(diff) >= 0.3:
-                insights += f"  - {med} ({count} times): Mood tends to be {abs(round(diff, 1))} points {direction}.\n"
-            else:
-                insights += f"  - {med} ({count} times): Mood similar to average.\n"
+    # נוסיף המלצות כלליות
+    insights += "\n• Recommendations to improve tracking:\n"
+    insights += "  - Record mood at consistent intervals after taking medications\n"
+    insights += "  - Note time of day and food intake with medications when possible\n"
+    insights += "  - Track any side effects along with mood ratings\n"
 
     return insights
 
@@ -490,7 +552,7 @@ def generate_symptom_insights(symptom_df, mood_df):
     insights = "🩺 Symptom Insights:\n"
 
     if symptom_df.empty or mood_df.empty:
-        return insights + "Not enough data to analyze symptoms.\n"
+        return insights + "• No symptom data available. Try recording symptoms and mood ratings to see insights.\n• Try recording how symptoms change throughout the day for better analysis.\n"
 
     symptom_fields = set()
     for _, row in symptom_df.iterrows():
@@ -509,9 +571,31 @@ def generate_symptom_insights(symptom_df, mood_df):
     # הסר כפילויות
     symptom_fields = list(set(symptom_fields))
 
+    # אם אין שדות סימפטומים, תן תובנות כלליות
     if not symptom_fields:
-        return insights + "No specific symptom fields detected.\n"
+        insights += "• No specific symptom fields detected.\n"
+        insights += "• Try recording more specific symptoms like tremor, stiffness, or balance issues.\n"
+        
+        # הצג את סוגי הרשומות שקיימות
+        symptom_types = set()
+        for _, row in symptom_df.iterrows():
+            item = row["item"]
+            if "type" in item:
+                symptom_types.add(item["type"])
+        
+        if symptom_types:
+            insights += "\n• Current record types found:\n"
+            for symptom_type in symptom_types:
+                insights += f"  - {symptom_type}\n"
+        
+        insights += "\n• Recommendations for better symptom tracking:\n"
+        insights += "  - Record specific symptoms with severity ratings\n"
+        insights += "  - Note when symptoms appear relative to medication timing\n"
+        insights += "  - Track symptom patterns throughout the day\n"
+        
+        return insights
 
+    # אם יש שדות סימפטומים, נתח אותם
     insights += "• Symptom impact on mood:\n"
     date_to_mood = {row["date"].date(): row["value"] for _, row in mood_df.iterrows()}
 
@@ -544,7 +628,16 @@ def generate_symptom_insights(symptom_df, mood_df):
             if abs(diff) >= 0.3:
                 insights += f"  - {symptom}: Mood {direction} by {round(abs(diff),1)} points when present.\n"
             else:
-                insights += f"  - {symptom}: No strong mood impact.\n"
+                insights += f"  - {symptom}: No strong mood impact observed.\n"
+        elif symptom_present_moods:
+            present_avg = np.mean(symptom_present_moods)
+            insights += f"  - {symptom}: Average mood {round(present_avg, 1)} when present.\n"
+
+    # נוסיף המלצות לשיפור המעקב
+    insights += "\n• Recommendations for symptom management:\n"
+    insights += "  - Pay attention to symptoms that show strong correlation with mood\n"
+    insights += "  - Track timing between medication intake and symptom changes\n"
+    insights += "  - Consider discussing significant symptom-mood patterns with healthcare provider\n"
 
     return insights
 
@@ -702,7 +795,7 @@ def analyze_medication_patterns(data, mood_field):
             day_meds = med_df[med_df["day"] == day]["name"].unique().tolist()
             
             # עבור מצב רוח, קבל את הממוצע של אותו יום
-            day_mood_df = mood_df[(mood_df["day"] == day) & (mood_df["type"] == mood_field)]
+            day_mood_df = mood_df[mood_df["day"] == day]
             
             if not day_mood_df.empty:
                 avg_severity = day_mood_df["severity"].mean()
@@ -770,10 +863,6 @@ def activity_analysis_summary(mood_field):
     # נתח את הפעילויות בצורה בסיסית (לפי הממשק הפשוט)
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
     basic_insights = generate_activity_insights(activity_df, mood_df)
-    
-    # אם אין מספיק נתונים, החזר את הניתוח הבסיסי
-    if "Not enough data" in basic_insights or "Not enough close-timing data" in basic_insights:
-        return basic_insights
     
     # נתח את הפעילויות בצורה מתקדמת
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
