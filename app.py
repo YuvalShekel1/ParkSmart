@@ -21,65 +21,7 @@ import seaborn as sns
 # סתימת אזהרות
 warnings.filterwarnings('ignore')
 
-# נסיון להתמודד עם בעיות תרגום
-try:
-    translator = Translator()
-except Exception as e:
-    print(f"Error initializing translator: {str(e)}")
-    # משתמש ב-translator dummy במקרה של כישלון
-    class DummyTranslator:
-        def translate(self, text, dest_lang):
-            class Result:
-                def __init__(self, text):
-                    self.result = text
-            return Result(text)
-    translator = DummyTranslator()
-
-# פונקציה לבדיקת תקינות שמות (פעילויות/תרופות וכו')
-def is_valid_name(name):
-    """
-    בדיקה קפדנית יותר של שמות. מחזירה True רק עבור שמות תקינים לחלוטין.
-    """
-    if not name or not isinstance(name, str) or len(name) < 2:
-        return False
-    
-    # בדוק שיש לפחות 50% אותיות באנגלית או עברית
-    english_letters = sum(1 for c in name if c.isalpha() and ord(c) < 128)
-    hebrew_letters = sum(1 for c in name if '\u0590' <= c <= '\u05FF')
-    total_chars = len(name)
-    
-    letter_percentage = (english_letters + hebrew_letters) / total_chars
-    
-    # חייב להיות לפחות 50% אותיות תקינות
-    if letter_percentage < 0.5:
-        return False
-    
-    # רשימה של שמות ידועים תקינים - תוסיף לפי הצורך
-    known_valid_names = [
-        "tennis", "walking", "swimming", "yoga", "running", 
-        "strength training", "pilates", "cycling", "hiking",
-        "טניס", "הליכה", "שחייה", "יוגה", "ריצה", 
-        "אימון כוח", "פילאטיס", "רכיבה על אופניים", "טיול",
-        "azilect", "dopicar", "sinemet", "rasagiline", "levodopa",
-        "אזילקט", "דופיקר", "סינמט", "רסאג'ילין", "לבודופה",
-        "tremor", "stiffness", "slowness", "balance problems",
-        "רעד", "נוקשות", "איטיות", "בעיות שיווי משקל",
-        "dystonia", "dyskinesia", "fatigue", "pain",
-        "דיסטוניה", "דיסקינזיה", "עייפות", "כאב",
-    ]
-    
-    # בדוק אם השם מכיל אחד השמות התקינים הידועים
-    for valid_name in known_valid_names:
-        if valid_name.lower() in name.lower():
-            return True
-    
-    # תבנית נפוצה לשמות לא תקינים - אותיות מוזרות
-    strange_chars = sum(1 for c in name if ord(c) > 255 and not '\u0590' <= c <= '\u05FF')
-    if strange_chars > 0:
-        return False
-    
-    # אם עברנו את כל הבדיקות והשם מכיל בעיקר אותיות אנגליות/עבריות, הוא כנראה תקין
-    return True
+translator = Translator()
 
 # מילון תרגום מלא
 translation_cache = {
@@ -168,8 +110,6 @@ translation_cache = {
     "אימון טנש קבוצתי": "Group Tennis Training",
     "משעה 2020 3 משחקים. הפסקה של 15 דקות לפני המשחקים": "From 8:20 PM, 3 games. 15-minute break before the games",
     "טנש": "Tennis",
-    "דיסטוניה": "Dystonia",
-    "דיסקינזיה": "Dyskinesia",
 }
 
 # מילון ערכים תזונתיים מורחב
@@ -263,36 +203,32 @@ def calculate_complex_meal_nutrition(meal_name):
         nutrition[nutrient] = round(nutrition[nutrient], 1)
     
     return nutrition
-    # פונקציות עיבוד
+
+# פונקציות עיבוד
 translated_data_global = {}
 original_full_json = {}
 
 def translate_value(value, key=None):
-    try:
-        if key == "notes" and not value:
-            return value
-        if isinstance(value, str):
-            if value in translation_cache:
-                return translation_cache[value]
-            hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
-            if hebrew_chars:
-                try:
-                    result = translator.translate(value, "English")
-                    translation_cache[value] = result.result
-                    return result.result
-                except Exception as e:
-                    print(f"Translation error: {str(e)}")
-                    return value
-            return value
-        elif isinstance(value, dict):
-            return {k: translate_value(v, k) for k, v in value.items()}
-        elif isinstance(value, list):
-            return [translate_value(item) for item in value]
-        else:
-            return value
-    except Exception as e:
-        print(f"Unexpected translation error: {str(e)}")
-        return value  # במקרה של שגיאה, החזר את הערך המקורי
+    if key == "notes" and not value:
+        return value
+    if isinstance(value, str):
+        if value in translation_cache:
+            return translation_cache[value]
+        hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
+        if hebrew_chars:
+            try:
+                result = translator.translate(value, "English")
+                translation_cache[value] = result.result
+                return result.result
+            except:
+                return value
+        return value
+    elif isinstance(value, dict):
+        return {k: translate_value(v, k) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [translate_value(item) for item in value]
+    else:
+        return value
 
 def extract_food_nutrition(food_name):
     # קודם בדוק התאמה מדויקת
@@ -360,10 +296,7 @@ def upload_and_process(file_obj):
                                 item["nutritionalValues"] = extract_food_nutrition(food_name)
                 
                 # תרגם את המקטע
-                try:
-                    original_full_json[key] = translate_value(section)
-                except Exception as e:
-                    print(f"Error translating {key}: {str(e)}")
+                original_full_json[key] = translate_value(section)
 
         translated_data_global = original_full_json
 
@@ -450,140 +383,163 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
     return symptom_df, mood_df
 
-# פונקציות יצירת תובנות בסיסיות - הגרסה המשופרת
+# פונקציות יצירת תובנות בסיסיות (הקוד המתוקן)
 def generate_activity_insights(activity_df, mood_df):
     insights = "🏃 Activity Insights:\n"
 
     if activity_df.empty or mood_df.empty:
         return insights + "• No activities data available.\n"
 
-    # ניתוח פעילויות - התמקדות רק בפעילויות תקינות ופופולריות
+    # ניתוח פעילויות - סינון שמות לא תקינים
     all_activities = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown"))
     
-    # רשימה של פעילויות תקינות (רק באנגלית ועברית)
+    # סינון שמות פעילויות לא תקינים - רק אותיות בעברית, אנגלית ומספרים
     valid_activities = []
     activity_counts = {}
     
     for activity in all_activities:
-        if is_valid_name(activity):
-            valid_activities.append(activity)
-            if activity in activity_counts:
-                activity_counts[activity] += 1
-            else:
-                activity_counts[activity] = 1
+        # בדוק אם הפעילות תקינה - רק אותיות באנגלית, עברית, מספרים ורווחים
+        if activity and isinstance(activity, str):
+            is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in activity)
+            if is_valid and len(activity) >= 2:
+                valid_activities.append(activity)
+                if activity in activity_counts:
+                    activity_counts[activity] += 1
+                else:
+                    activity_counts[activity] = 1
     
-    # מיון פעילויות לפי שכיחות
+    # מיון פעילויות לפי תדירות
     sorted_activities = sorted(activity_counts.items(), key=lambda x: x[1], reverse=True)
     
-    # התמקד רק בפעילויות המשמעותיות (עם לפחות 2 מופעים)
-    significant_activities = [a for a, count in sorted_activities if count >= 2]
+    if sorted_activities:
+        insights += "• Activity frequency:\n"
+        for activity, count in sorted_activities:
+            if count > 0:
+                insights += f"  - {activity}: {count} times\n"
     
-    # אם יש פעילויות משמעותיות, הצג רק אותן
-    if significant_activities:
-        insights += "• Main activities:\n"
-        for activity in significant_activities[:3]:  # הצג רק את 3 הפעילויות העיקריות
-            insights += f"  - {activity}\n"
-    
-    # ניתוח קשר
-    insights = "🏃 Activity Insights:\n"
-
-    if activity_df.empty or mood_df.empty:
-        return insights + "• No activities data available.\n"
-
-    # ניתוח פעילויות - התמקדות רק בפעילויות תקינות ופופולריות
-    all_activities = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown"))
-    
-    # רשימה של פעילויות תקינות (רק באנגלית ועברית)
-    valid_activities = []
-    activity_counts = {}
-    
-    for activity in all_activities:
-        if is_valid_name(activity):
-            valid_activities.append(activity)
-            if activity in activity_counts:
-                activity_counts[activity] += 1
-            else:
-                activity_counts[activity] = 1
-    
-    # מיון פעילויות לפי שכיחות
-    sorted_activities = sorted(activity_counts.items(), key=lambda x: x[1], reverse=True)
-    
-    # התמקד רק בפעילויות המשמעותיות (עם לפחות 2 מופעים)
-    significant_activities = [a for a, count in sorted_activities if count >= 2]
-    
-    # אם יש פעילויות משמעותיות, הצג רק אותן
-    if significant_activities:
-        insights += "• Main activities:\n"
-        for activity in significant_activities[:3]:  # הצג רק את 3 הפעילויות העיקריות
-            insights += f"  - {activity}\n"
-    
-    # ניתוח קשר בין פעילויות למצב רוח - רק עבור פעילויות תקינות
+    # ניתוח קשר בין פעילויות למצב רוח - התמקדות בדפוסים
     combined_data = []
     for _, mood_row in mood_df.iterrows():
         mood_date = mood_row["date"]
         mood_value = mood_row["value"]
         
-        # קח פעילויות מאותו יום
+        # קח פעילויות מאותו יום, לא רק עם תזמון מדויק
         same_day_activities = activity_df[activity_df["date"].dt.date == mood_date.date()]
         
         for _, act_row in same_day_activities.iterrows():
             activity_item = act_row["item"]
             activity_name = activity_item.get("activityName", "Unknown")
             
-            # בדיקה קפדנית יותר של תקינות השם
-            if is_valid_name(activity_name):
+            # סינון שמות פעילויות לא תקינים
+            is_valid = False
+            if activity_name and isinstance(activity_name, str):
+                is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in activity_name)
+            
+            if is_valid and len(activity_name) >= 2:
+                duration = activity_item.get("duration", 0)
+                intensity = activity_item.get("intensity", "Unknown")
                 combined_data.append({
                     "mood_value": mood_value,
-                    "activity_name": activity_name
+                    "activity_name": activity_name,
+                    "duration": duration,
+                    "intensity": intensity
                 })
 
     if combined_data:
         analysis_df = pd.DataFrame(combined_data)
         
-        # תובנות ספציפיות על השפעת פעילויות
-        insights += "\n• Activity impact on your state:\n"
+        # ניתוח השפעת פעילויות על מצב רוח
+        insights += "\n• Activity impact on mood state:\n"
         
         activity_mood_impact = {}
-        overall_mood_avg = mood_df["value"].mean() if not mood_df.empty else 0
+        activity_types = analysis_df["activity_name"].unique()
         
-        for activity in significant_activities:
+        for activity in activity_types:
             activity_data = analysis_df[analysis_df["activity_name"] == activity]
-            if len(activity_data) >= 2:  # לפחות 2 מופעים
+            if len(activity_data) >= 1:
                 avg_mood = activity_data["mood_value"].mean()
-                diff = avg_mood - overall_mood_avg
+                avg_mood_rounded = round(avg_mood, 1)
+                mood_description = ""
                 
-                # נוסיף את ההפרש המספרי
-                if abs(diff) >= 0.1:  # אפילו הפרשים קטנים נציג בצורה מספרית
-                    direction = "higher" if diff > 0 else "lower"
-                    diff_text = f" - mood is {round(abs(diff), 1)} points {direction} than average"
-                else:
-                    diff_text = " - no noticeable difference from average mood"
-                
-                # הגדרת השפעה עם תיאור מספרי ספציפי
+                # הגדרת תיאור מצב רוח
                 if avg_mood >= 4.5:
-                    impact = f"significantly improves your mood{diff_text}"
+                    mood_description = "excellent"
                 elif avg_mood >= 4:
-                    impact = f"improves your mood{diff_text}"
+                    mood_description = "very good"
                 elif avg_mood >= 3.5:
-                    impact = f"slightly improves your mood{diff_text}"
+                    mood_description = "good"
                 elif avg_mood >= 3:
-                    impact = f"has neutral effect on your mood{diff_text}"
+                    mood_description = "moderate"
                 elif avg_mood >= 2:
-                    impact = f"tends to worsen your mood{diff_text}"
+                    mood_description = "below average"
                 else:
-                    impact = f"significantly worsens your mood{diff_text}"
+                    mood_description = "poor"
                 
                 activity_mood_impact[activity] = {
-                    "impact": impact,
-                    "avg_mood": avg_mood,
-                    "diff": diff
+                    "count": len(activity_data),
+                    "avg_mood": avg_mood_rounded,
+                    "description": mood_description
                 }
         
-        # מיון לפי השפעה חיובית
+        # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
         sorted_impacts = sorted(activity_mood_impact.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
         
-        for activity, impact_data in sorted_impacts:
-            insights += f"  - {activity} {impact_data['impact']}\n"
+        for activity, impact in sorted_impacts:
+            insights += f"  - After {activity} ({impact['count']} times): Mood is {impact['description']} ({impact['avg_mood']}/5)\n"
+        
+        # ניתוח השפעת עוצמת הפעילות על מצב רוח
+        if "intensity" in analysis_df.columns and len(analysis_df) >= 3:
+            insights += "\n• Impact of activity intensity on mood:\n"
+            
+            # המר עוצמות למספרים לצורך חישוב
+            intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
+            analysis_df["intensity_num"] = analysis_df["intensity"].map(lambda x: intensity_map.get(x, 0))
+            
+            intensity_mood = {}
+            for intensity in ["Low", "Moderate", "High"]:
+                intensity_data = analysis_df[analysis_df["intensity"] == intensity]
+                if len(intensity_data) >= 1:
+                    avg_mood = intensity_data["mood_value"].mean()
+                    intensity_mood[intensity] = {
+                        "count": len(intensity_data),
+                        "avg_mood": round(avg_mood, 1)
+                    }
+            
+            # מיון לפי השפעה על מצב רוח
+            sorted_intensities = sorted(intensity_mood.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
+            
+            for intensity, data in sorted_intensities:
+                insights += f"  - {intensity} intensity activities ({data['count']} times): Mood averages {data['avg_mood']}/5\n"
+        
+        # ניתוח השפעת משך הפעילות
+        if "duration" in analysis_df.columns and len(analysis_df) >= 3:
+            # חלוקה למשכי זמן
+            analysis_df["duration_category"] = pd.cut(
+                analysis_df["duration"],
+                bins=[0, 30, 60, 120, float('inf')],
+                labels=["Short (<30 min)", "Medium (30-60 min)", "Long (1-2 hours)", "Very long (>2 hours)"]
+            )
+            
+            insights += "\n• Impact of activity duration on mood:\n"
+            
+            duration_mood = {}
+            for duration_cat in analysis_df["duration_category"].unique():
+                if pd.isna(duration_cat):
+                    continue
+                    
+                duration_data = analysis_df[analysis_df["duration_category"] == duration_cat]
+                if len(duration_data) >= 1:
+                    avg_mood = duration_data["mood_value"].mean()
+                    duration_mood[duration_cat] = {
+                        "count": len(duration_data),
+                        "avg_mood": round(avg_mood, 1)
+                    }
+            
+            # מיון לפי השפעה על מצב רוח
+            sorted_durations = sorted(duration_mood.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
+            
+            for duration_cat, data in sorted_durations:
+                insights += f"  - {duration_cat} ({data['count']} times): Mood averages {data['avg_mood']}/5\n"
     
     return insights
 
@@ -593,22 +549,53 @@ def generate_medication_insights(medication_df, mood_df):
     if medication_df.empty or mood_df.empty:
         return insights + "• No medication data available.\n"
 
-    # ניתוח תרופות - סינון קפדני של שמות תרופות
+    # ניתוח תרופות - סינון שמות לא תקינים
     all_medications = medication_df["item"].apply(lambda x: x.get("name", "Unknown"))
     
-    # רשימה של תרופות תקינות
+    # סינון שמות תרופות לא תקינים
     valid_medications = []
     medication_counts = {}
     
     for medication in all_medications:
-        if is_valid_name(medication):
-            valid_medications.append(medication)
-            if medication in medication_counts:
-                medication_counts[medication] += 1
-            else:
-                medication_counts[medication] = 1
+        # בדוק אם שם התרופה תקין
+        if medication and isinstance(medication, str):
+            is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in medication)
+            if is_valid and len(medication) >= 2:
+                valid_medications.append(medication)
+                if medication in medication_counts:
+                    medication_counts[medication] += 1
+                else:
+                    medication_counts[medication] = 1
     
-    # תובנות ספציפיות על השפעת תרופות
+    # מיון תרופות לפי תדירות
+    sorted_medications = sorted(medication_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    if sorted_medications:
+        insights += "• Medication frequency:\n"
+        for medication, count in sorted_medications:
+            if count > 0:
+                insights += f"  - {medication}: {count} times\n"
+    
+    # אם יש נתוני מינון, נוסיף ניתוח מינון
+    if medication_df["item"].apply(lambda x: "quantity" in x).any():
+        insights += "\n• Medication dosages:\n"
+        
+        for medication, count in sorted_medications:
+            if count > 0:
+                med_items = medication_df[medication_df["item"].apply(lambda x: x.get("name", "") == medication)]
+                quantities = med_items["item"].apply(lambda x: float(x.get("quantity", 0)))
+                
+                if not quantities.empty and quantities.sum() > 0:
+                    min_dose = quantities.min()
+                    max_dose = quantities.max()
+                    avg_dose = quantities.mean()
+                    
+                    if min_dose == max_dose:
+                        insights += f"  - {medication}: Consistent dosage of {min_dose}\n"
+                    else:
+                        insights += f"  - {medication}: Varies between {min_dose} and {max_dose} (avg: {round(avg_dose, 1)})\n"
+    
+    # ניתוח השפעת תרופות על מצב רוח
     combined_data = []
     
     # קח שילובים של מצב רוח ותרופות של אותו יום
@@ -618,61 +605,70 @@ def generate_medication_insights(medication_df, mood_df):
         
         same_day_meds = medication_df[medication_df["date"].dt.date == mood_date.date()]
         
-        for _, med_row in same_day_meds.iterrows():
-            med_item = med_row["item"]
-            med_name = med_item.get("name", "Unknown")
-            
-            # בדיקה קפדנית יותר של תקינות השם
-            if is_valid_name(med_name):
-                dosage = float(med_item.get("quantity", 0))
-                combined_data.append({
-                    "mood_value": mood_value,
-                    "medication_name": med_name,
-                    "dosage": dosage
-                })
+        if not same_day_meds.empty:
+            for _, med_row in same_day_meds.iterrows():
+                med_item = med_row["item"]
+                med_name = med_item.get("name", "Unknown")
+                
+                # סינון שמות תרופות לא תקינים
+                is_valid = False
+                if med_name and isinstance(med_name, str):
+                    is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in med_name)
+                
+                if is_valid and len(med_name) >= 2:
+                    dosage = float(med_item.get("quantity", 0))
+                    combined_data.append({
+                        "mood_value": mood_value,
+                        "medication_name": med_name,
+                        "dosage": dosage
+                    })
     
     if combined_data:
         analysis_df = pd.DataFrame(combined_data)
         
-        # ניתוח השפעת תרופות - עם ערכים מספריים ספציפיים
-        insights += "• Medication impact on your state:\n"
+        # ניתוח השפעת תרופות על מצב רוח
+        insights += "\n• Medication impact on mood state:\n"
         
-        significant_meds = [med for med, count in medication_counts.items() if count >= 2]
-        overall_mood_avg = mood_df["value"].mean() if not mood_df.empty else 0
+        medication_mood_impact = {}
+        medication_types = analysis_df["medication_name"].unique()
         
-        for medication in significant_meds:
+        for medication in medication_types:
             medication_data = analysis_df[analysis_df["medication_name"] == medication]
-            if len(medication_data) >= 2:  # לפחות 2 מופעים
+            if len(medication_data) >= 1:
                 avg_mood = medication_data["mood_value"].mean()
-                diff = avg_mood - overall_mood_avg
+                avg_mood_rounded = round(avg_mood, 1)
+                mood_description = ""
                 
-                # נוסיף את ההפרש המספרי
-                if abs(diff) >= 0.1:  # אפילו הפרשים קטנים נציג
-                    direction = "higher" if diff > 0 else "lower"
-                    diff_text = f" - mood is {round(abs(diff), 1)} points {direction} than average"
-                else:
-                    diff_text = " - no noticeable difference from average"
-                
-                # הגדרת השפעה עם תיאור מספרי ספציפי
+                # הגדרת תיאור מצב רוח
                 if avg_mood >= 4.5:
-                    impact = f"is associated with excellent mood{diff_text}"
+                    mood_description = "excellent"
                 elif avg_mood >= 4:
-                    impact = f"is associated with good mood{diff_text}"
+                    mood_description = "very good"
                 elif avg_mood >= 3.5:
-                    impact = f"may help improve your mood{diff_text}"
+                    mood_description = "good"
                 elif avg_mood >= 3:
-                    impact = f"has minimal effect on your mood{diff_text}"
+                    mood_description = "moderate"
                 elif avg_mood >= 2:
-                    impact = f"may be associated with lower mood{diff_text}"
+                    mood_description = "below average"
                 else:
-                    impact = f"tends to be associated with poorer mood{diff_text}"
+                    mood_description = "poor"
                 
-                insights += f"  - {medication} {impact}\n"
+                medication_mood_impact[medication] = {
+                    "count": len(medication_data),
+                    "avg_mood": avg_mood_rounded,
+                    "description": mood_description
+                }
         
-        # ניתוח השפעת מינון (רק אם יש שונות במינון)
+        # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
+        sorted_impacts = sorted(medication_mood_impact.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
+        
+        for medication, impact in sorted_impacts:
+            insights += f"  - After {medication} ({impact['count']} times): Mood is {impact['description']} ({impact['avg_mood']}/5)\n"
+        
+        # ניתוח השפעת מינון על מצב רוח (אם יש נתונים מספיקים)
         dosage_insights = ""
         
-        for medication in significant_meds:
+        for medication in medication_types:
             medication_data = analysis_df[analysis_df["medication_name"] == medication]
             
             # בדוק אם יש מספיק נתונים ואם יש שונות במינון
@@ -685,13 +681,13 @@ def generate_medication_insights(medication_df, mood_df):
                     low_mood = low_dosage["mood_value"].mean()
                     high_mood = high_dosage["mood_value"].mean()
                     
-                    if abs(low_mood - high_mood) >= 0.2:  # אפילו הפרשים קטנים נציג
+                    if abs(low_mood - high_mood) >= 0.5:  # רק אם יש הבדל משמעותי
                         better_dosage = "Higher" if high_mood > low_mood else "Lower"
-                        diff_value = abs(high_mood - low_mood)
-                        dosage_insights += f"  - {medication}: {better_dosage} dosage seems more beneficial (by {round(diff_value, 1)} points)\n"
+                        dosage_insights += f"  - {medication}: {better_dosage} dosage associated with better mood state\n"
+                        dosage_insights += f"    (Low dosage: {round(low_mood, 1)}/5, High dosage: {round(high_mood, 1)}/5)\n"
         
         if dosage_insights:
-            insights += "\n• Dosage insights:\n" + dosage_insights
+            insights += "\n• Impact of medication dosage on mood:\n" + dosage_insights
     
     return insights
 
@@ -701,34 +697,43 @@ def generate_symptom_insights(symptom_df, mood_df):
     if symptom_df.empty or mood_df.empty:
         return insights + "• No symptom data available.\n"
 
-    # דלה את הסימפטומים ובדוק שהם תקינים
+    # דלה את כל סוגי הסימפטומים
     symptom_fields = set()
-    
     for _, row in symptom_df.iterrows():
         item = row["item"]
         for key in item.keys():
             if key not in ["date", "notes", "id", "Parkinson's State", "My Mood", "Physical State", "type", "severity", "createdAt", "updatedAt", "__v", "_id", "userId"]:
-                # בדיקה קפדנית יותר של תקינות השם
-                if is_valid_name(key):
-                    symptom_fields.add(key)
+                symptom_fields.add(key)
     
-    # הוסף גם את הסימפטומים מ-type
+    # הוסף גם את הסימפטומים שמופיעים בשדה type
     for _, row in symptom_df.iterrows():
         item = row["item"]
         if "type" in item and item["type"] not in ["Parkinson's State", "My Mood", "Physical State"]:
-            symptom_type = item["type"]
-            if is_valid_name(symptom_type):
-                symptom_fields.add(symptom_type)
+            symptom_fields.add(item["type"])
     
-    symptom_fields = list(symptom_fields)
+    # הסר כפילויות
+    symptom_fields = list(set(symptom_fields))
     
+    # אם אין שדות סימפטומים, בדוק אם יש סימפטומים אחרים כלשהם
     if not symptom_fields:
-        return insights + "• No specific symptoms detected.\n"
+        symptom_types = set()
+        for _, row in symptom_df.iterrows():
+            item = row["item"]
+            if "type" in item:
+                symptom_types.add(item["type"])
+        
+        if symptom_types:
+            insights += "• Symptom record types:\n"
+            for symptom_type in symptom_types:
+                insights += f"  - {symptom_type}\n"
+        else:
+            insights += "• No specific symptom data detected.\n"
+        
+        return insights
 
-    # ניתוח ההשפעה של כל סימפטום - עם מספרים מדויקים
+    # עבור כל סימפטום, בדוק את ההשפעה על מצב הרוח
     symptom_effects = []
     date_to_mood = {row["date"].date(): row["value"] for _, row in mood_df.iterrows()}
-    overall_mood_avg = mood_df["value"].mean() if not mood_df.empty else 0
     
     for symptom in symptom_fields:
         symptom_present_moods = []
@@ -755,53 +760,38 @@ def generate_symptom_insights(symptom_df, mood_df):
                 else:
                     symptom_absent_moods.append(mood_value)
         
-        # חשב רק אם יש מספיק נתונים
-        if symptom_present_moods and len(symptom_present_moods) >= 2:
+        # חשב את ההשפעה רק אם יש מספיק נתונים
+        if symptom_present_moods and symptom_absent_moods:
             present_avg = np.mean(symptom_present_moods)
+            absent_avg = np.mean(symptom_absent_moods)
+            diff = present_avg - absent_avg
+            direction = "higher" if diff > 0 else "lower"
             
-            if symptom_absent_moods:
-                absent_avg = np.mean(symptom_absent_moods)
-                diff = present_avg - absent_avg
-                
-                # השתמש בתיאור מספרי מדויק
-                if diff >= 0.1 or diff <= -0.1:  # חשוב להציג גם הפרשים קטנים
-                    direction = "higher" if diff > 0 else "lower"
-                    effect = f"mood is {round(abs(diff), 1)} points {direction} when present"
-                else:
-                    effect = "doesn't significantly affect your mood"
-                
-                symptom_effects.append({
-                    "symptom": symptom,
-                    "effect": effect,
-                    "present_count": len(symptom_present_moods),
-                    "diff": abs(diff)
-                })
-            else:
-                # אם אין נתונים על העדר הסימפטום, השווה למצב הממוצע הכללי
-                diff = present_avg - overall_mood_avg
-                if diff >= 0.1 or diff <= -0.1:
-                    direction = "higher" if diff > 0 else "lower"
-                    effect = f"mood is {round(abs(diff), 1)} points {direction} than average when present"
-                else:
-                    effect = "was recorded with no significant impact on mood"
-                    
-                symptom_effects.append({
-                    "symptom": symptom,
-                    "effect": effect,
-                    "present_count": len(symptom_present_moods),
-                    "diff": abs(diff)
-                })
+            symptom_effects.append({
+                "symptom": symptom,
+                "present_count": len(symptom_present_moods),
+                "absent_count": len(symptom_absent_moods),
+                "present_avg": round(present_avg, 1),
+                "absent_avg": round(absent_avg, 1),
+                "diff": round(abs(diff), 1),
+                "direction": direction,
+                "significant": abs(diff) >= 0.3
+            })
     
-    # מיין את ההשפעות לפי חוזק ההשפעה
+    # מיין את ההשפעות לפי גודל ההבדל
     symptom_effects.sort(key=lambda x: x["diff"], reverse=True)
     
     if symptom_effects:
-        insights += "• Symptom impact on your mood:\n"
+        insights += "• Symptom impact on mood:\n"
         
         for effect in symptom_effects:
-            insights += f"  - {effect['symptom']}: {effect['effect']} ({effect['present_count']} occurrences)\n"
+            if effect["significant"]:
+                insights += f"  - {effect['symptom']} ({effect['present_count']} occurrences): Mood {effect['direction']} by {effect['diff']} points when present\n"
+                insights += f"    (Average mood: {effect['present_avg']}/5 with symptom, {effect['absent_avg']}/5 without)\n"
+            else:
+                insights += f"  - {effect['symptom']} ({effect['present_count']} occurrences): No significant mood impact\n"
     
-    # הוסף ניתוח של יחסי גומלין בין סימפטומים
+    # ניתוח של יחסי גומלין בין סימפטומים שונים
     if len(symptom_fields) >= 2:
         # בדוק אילו סימפטומים מופיעים יחד
         symptom_co_occurrence = {}
@@ -844,7 +834,7 @@ def generate_symptom_insights(symptom_df, mood_df):
                 
             association_strength = counts["both"] / expected_both
             
-            if counts["both"] >= 2 and association_strength >= 1.2:  # הקלה בתנאי כדי להציג יותר קשרים
+            if counts["both"] >= 2 and association_strength >= 1.5:
                 significant_pairs.append({
                     "symptom1": symptom1,
                     "symptom2": symptom2,
@@ -856,14 +846,14 @@ def generate_symptom_insights(symptom_df, mood_df):
         significant_pairs.sort(key=lambda x: x["association_strength"], reverse=True)
         
         if significant_pairs:
-            insights += "\n• Symptom patterns:\n"
+            insights += "\n• Symptom co-occurrence patterns:\n"
             
             for pair in significant_pairs[:3]:  # הצג רק את 3 הזוגות המשמעותיים ביותר
-                strength_text = f" ({pair['association_strength']}x more likely together)"
-                insights += f"  - {pair['symptom1']} and {pair['symptom2']} tend to occur together{strength_text}\n"
+                insights += f"  - {pair['symptom1']} and {pair['symptom2']} tend to occur together ({pair['both_count']} times)\n"
     
     return insights
-    # פונקציות ניתוח מתקדמות
+
+# פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
     if not data or "activities" not in data or "symptoms" not in data:
         return "Not enough data for activity pattern analysis."
@@ -875,10 +865,13 @@ def analyze_activity_patterns(data, mood_field):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
                 # וודא שהשם המדויק של הפעילות נלקח מהשדה הנכון
                 activity_name = item.get("activityName", "")
+                if not activity_name or len(activity_name) < 2:
+                    continue  # דלג על פעילויות ללא שם תקין
                 
-                # בדיקה קפדנית יותר של תקינות השם
-                if not is_valid_name(activity_name):
-                    continue  # דלג על שמות לא תקינים
+                # סינון שמות פעילויות לא תקינים
+                is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in activity_name)
+                if not is_valid:
+                    continue
                 
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
@@ -987,9 +980,10 @@ def analyze_medication_patterns(data, mood_field):
             if "date" in item and "name" in item:
                 med_name = item.get("name", "")
                 
-                # בדיקה קפדנית יותר של תקינות השם
-                if not is_valid_name(med_name):
-                    continue  # דלג על שמות לא תקינים
+                # סינון שמות תרופות לא תקינים
+                is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in med_name)
+                if not is_valid or len(med_name) < 2:
+                    continue
                 
                 med_data.append({
                     "date": pd.to_datetime(item["date"]),
@@ -1081,26 +1075,101 @@ def analyze_medication_patterns(data, mood_field):
         # מיון לפי lift (חשיבות)
         mood_rules.sort(key=lambda x: x["lift"], reverse=True)
         
-        return mood_rules[:5]  # החזר 5 חוק
+        return mood_rules[:5]  # החזר 5 חוקים עליונים
+    except Exception as e:
+        return f"Error in medication pattern analysis: {str(e)}"
+
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
-    
+        
+    # נתח את הפעילויות בצורה בסיסית (לפי הממשק הפשוט)
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
-    return generate_activity_insights(activity_df, mood_df)
+    basic_insights = generate_activity_insights(activity_df, mood_df)
+    
+    # נתח את הפעילויות בצורה מתקדמת
+    advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
+    
+    # אם יש שגיאה או אין מספיק נתונים, החזר רק את הניתוח הבסיסי
+    if isinstance(advanced_analysis, str):
+        if "Not enough" in advanced_analysis:
+            return basic_insights
+        return basic_insights + "\n\n" + advanced_analysis
+    
+    # אם אין פעילויות לניתוח, החזר רק את הניתוח הבסיסי
+    if not advanced_analysis:
+        return basic_insights
+    
+    # בנה תובנות מפורטות על סמך הניתוח המתקדם
+    detailed_insights = "\n\nDetailed Activity Analysis:\n"
+    for activity in advanced_analysis[:3]:
+        # וודא שיש שם פעילות תקין
+        activity_name = activity.get('activity_name', '')
+        if not activity_name or len(activity_name) < 2 or activity_name == "Unknown":
+            continue
+            
+        # וודא שיש לפחות 2 מופעים של הפעילות
+        if activity.get('count', 0) < 2:
+            continue
+            
+        detailed_insights += f"- {activity_name}: {activity.get('avg_mood_after', 0):.1f}/5 rating after {activity.get('count')} activities\n"
+        
+        # רק אם יש קורלציה משמעותית וגם לפחות 3 מופעים, הצג אותה
+        if activity.get('correlation') is not None and abs(activity.get('correlation', 0)) > 0.3 and activity.get('count', 0) >= 3:
+            corr = activity.get('correlation')
+            direction = "positive" if corr > 0 else "negative"
+            explanation = "higher intensity = better mood" if corr > 0 else "lower intensity = better mood"
+            detailed_insights += f"  ({explanation}, correlation: {corr:.2f})\n"
+    
+    # רק אם נוספו תובנות מפורטות מעבר לכותרת, החזר אותן
+    if detailed_insights != "\n\nDetailed Activity Analysis:\n":
+        return basic_insights + detailed_insights
+    else:
+        return basic_insights
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
-    
     medication_df, mood_df = prepare_medication_and_mood_data(translated_data_global, mood_field)
-    return generate_medication_insights(medication_df, mood_df)
+    basic_insights = generate_medication_insights(medication_df, mood_df)
+    
+    # שלב את התובנות הבסיסיות עם הניתוח המתקדם
+    advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
+    
+    if isinstance(advanced_analysis, str):
+        if "Not enough" in advanced_analysis or "No significant" in advanced_analysis:
+            return basic_insights
+        return basic_insights + "\n\n" + advanced_analysis
+    
+    detailed_insights = "\n\nDetailed Medication Patterns:\n"
+    for idx, rule in enumerate(advanced_analysis[:3]):
+        antecedents = list(rule.get("antecedents", []))
+        consequents = list(rule.get("consequents", []))
+        
+        meds = []
+        mood_level = None
+        
+        for item in antecedents + consequents:
+            if isinstance(item, str):
+                if item.startswith(f"{mood_field}_Level_"):
+                    mood_level = item.replace(f"{mood_field}_Level_", "Rating: ")
+                else:
+                    meds.append(item)
+        
+        if meds and mood_level:
+            meds_str = ", ".join(meds)
+            detailed_insights += f"- {meds_str} associated with {mood_level}\n"
+            detailed_insights += f"  (Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})\n"
+    
+    if detailed_insights != "\n\nDetailed Medication Patterns:\n":
+        return basic_insights + detailed_insights
+    else:
+        return basic_insights
 
 def symptom_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
-    
     symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
     return generate_symptom_insights(symptom_df, mood_df)
 
@@ -1114,7 +1183,7 @@ def upload_json(file_obj):
         processed_file, status = upload_and_process(file_obj)
         return processed_file, status
     except Exception as e:
-        return None, f"❌ Error processing: {str(e)}"
+        return None, f"❌ Error: {str(e)}"
 
 # יצירת האפליקציה עם העיצוב החדש
 with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
@@ -1152,17 +1221,7 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
     medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
     symptom_button.click(fn=symptom_analysis_summary, inputs=[mood_selector], outputs=[symptom_output])
 
-# הפעלת האפליקציה - גרסה מעודכנת לעבודה עם Render
+# הפעלת האפליקציה
 if __name__ == "__main__":
-    # קבל את הפורט מהמשתנה סביבה PORT - חשוב ל-Render
     port = int(os.environ.get('PORT', 5000))
-    
-    # השתמש בפרמטרים שעובדים טוב עם Render
-    app.queue().launch(
-        server_name='0.0.0.0',  # חשוב: זה מאפשר גישה חיצונית
-        server_port=port,        # השתמש בפורט מהמשתנה סביבה
-        share=False,             # אל תשתמש ב-share כי אנחנו כבר מארחים ב-Render
-        debug=False,             # כבה מצב debug בסביבת ייצור
-        inbrowser=False,         # אל תנסה לפתוח דפדפן
-        show_api=False           # אל תציג API בסביבת ייצור
-    )
+    app.launch(server_name='0.0.0.0', server_port=port)
