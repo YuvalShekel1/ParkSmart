@@ -1,19 +1,833 @@
-## מבחינת עיצוב סרגל כלים וכל זה זה מעולה! רק אין את כל עניין התובנות והתרגום והערכים תזונתיים והורדה תודה של הקובץ 
-
 import gradio as gr
+import json
+import tempfile
+from translatepy import Translator
+from datetime import datetime
+import os
 import pandas as pd
 import numpy as np
-import json
-import os
-import tempfile
 from collections import Counter
+import warnings
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import silhouette_score
+from scipy.stats import pearsonr, spearmanr
+from mlxtend.frequent_patterns import apriori, association_rules
+from mlxtend.preprocessing import TransactionEncoder
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# גלובלים
+# סתימת אזהרות
+warnings.filterwarnings('ignore')
+
+translator = Translator()
+
+# מילון תרגום מלא
+translation_cache = {
+    "איטי": "Slow",
+    "לא מצליח להתאזן ולהתאמן": "Unable to balance and exercise",
+    "בוקר טוב": "Good morning",
+    "תחושה כללית פחות טובה": "General feeling is less good",
+    "מרגיש מצוין": "Feeling excellent",
+    "איטיות": "Slowness",
+    "טוב": "Good",
+    "התכווצויות בכפות הרגליים למשך 15 דקות": "Foot cramps for 15 minutes",
+    "התכווצויות באצבעות רגל ימין": "Toe cramps in right foot",
+    "אזילקט": "Azilect",
+    "דופיקר": "Dopicar",
+    "דופיקר 125": "Dopicar 125",
+    "דופיקר 175": "Dopicar 175",
+    "דופיקר 250": "Dopicar 250",
+    "קפה": "Coffee",
+    "חצי פיתה עם חמאת בוטנים": "Half pita with peanut butter",
+    "פלפל ומלפפון": "Pepper and cucumber",
+    "קערת קורנפלקס עם חלב סויה וצימוקים": "Bowl of cornflakes with soy milk and raisins",
+    "קערת קורנפלקס עם חלב שקדים וצימוקים": "Bowl of cornflakes with almond milk and raisins",
+    "סלמון עם פירה ואפונה": "Salmon with mashed potatoes and peas",
+    "פיתה טחינה מלפפון עגבנייה ושניצל קטן": "Pita with tahini, cucumber, tomato and small schnitzel",
+    "מעדן סויה אפרסק": "Peach soy pudding",
+    "פלפל עם קוטג'": "Pepper with cottage cheese",
+    "רבע פיתה עם ממרח בוטנים": "Quarter pita with peanut spread",
+    "תפו\"א מבושלים שעועית ירוקה וקצת קינואה, 50 גרם עוף": "Boiled potatoes, green beans and a bit of quinoa with 50g chicken",
+    "תפו\"א מבושלים, סלט ביצים": "Boiled potatoes and egg salad",
+    "מרק ירקות עם פתיתים": "Vegetable soup with ptitim",
+    "מרק אפונה, כרובית מבושלת": "Pea soup with cooked cauliflower",
+    "צלחת מרק סלרי": "Plate of celery soup",
+    "פאי אגסים וקפה קטן": "Pear pie and small coffee",
+    "שקדים טבעיים": "Natural almonds",
+    "עוגת תפוחים": "Apple cake",
+    "חלב סויה": "Soy milk",
+    "חלב שקדים": "Almond milk",
+    "צימוקים": "Raisins",
+    "מלפפון": "Cucumber",
+    "פלפל": "Pepper",
+    "טחינה": "Tahini",
+    "עגבנייה": "Tomato",
+    "פירה": "Mashed potatoes",
+    "אפונה": "Peas",
+    "שניצל": "Schnitzel",
+    "חצי פיתה עם ריבה": "Half pita with jam",
+    "ריבה": "Jam",
+    "סלט ביצים": "Egg salad",
+    "ביצים": "Eggs",
+    "קוטג'": "Cottage cheese",
+    "שעועית ירוקה": "Green beans",
+    "קינואה": "Quinoa",
+    "עוף": "Chicken",
+    "פתיתים": "Ptitim",
+    "כרובית מבושלת": "Cooked cauliflower",
+    "כרובית": "Cauliflower",
+    "תפו\"א": "Potatoes",
+    "תפוחי אדמה": "Potatoes",
+    "מצב פרקינסון": "Parkinson's State",
+    "מצב פיזי": "Physical State",
+    "מצב הרוח שלי": "My Mood",
+    "סימפטומים": "symptoms",
+    "תרופות": "medicines",
+    "תזונה": "nutritions",
+    "פעילויות": "activities",
+    "תרופה": "medicine",
+    "פעילות": "activity",
+    "פיל": "Pill",
+    "כדור": "Pill",
+    "גבוה": "High",
+    "בינוני": "Moderate",
+    "נמוך": "Low",
+    "רעד": "Tremor",
+    "קושי בדיבור": "Speech Difficulty",
+    "קשיחות": "Stiffness",
+    "איטיות בתנועה": "Slowness of Movement",
+    "בעיות שיווי משקל": "Balance Problems",
+    "עייפות": "Fatigue",
+    "כאבים": "Pain",
+    "הליכה": "Walking",
+    "ריצה": "Running",
+    "שחייה": "Swimming",
+    "יוגה": "Yoga",
+    "אימון כוח": "Strength Training",
+    "אימון טנש": "Tennis Training",
+    "אימון טנש קבוצתי": "Group Tennis Training",
+    "משעה 2020 3 משחקים. הפסקה של 15 דקות לפני המשחקים": "From 8:20 PM, 3 games. 15-minute break before the games",
+}
+
+# מילון ערכים תזונתיים מורחב
+nutrition_db = {
+    "פיתה": {"proteins": 6, "fats": 1.5, "carbohydrates": 33, "dietaryFiber": 1.5},
+    "חמאת בוטנים": {"proteins": 8, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
+    "ממרח בוטנים": {"proteins": 8, "fats": 16, "carbohydrates": 6, "dietaryFiber": 2},
+    "קפה": {"proteins": 0.3, "fats": 0.1, "carbohydrates": 0.4, "dietaryFiber": 0},
+    "סלמון": {"proteins": 25, "fats": 14, "carbohydrates": 0, "dietaryFiber": 0},
+    "קורנפלקס": {"proteins": 7, "fats": 1, "carbohydrates": 84, "dietaryFiber": 3},
+    "חלב סויה": {"proteins": 3.3, "fats": 2, "carbohydrates": 4, "dietaryFiber": 0.5},
+    "חלב שקדים": {"proteins": 1.1, "fats": 2.5, "carbohydrates": 3, "dietaryFiber": 0.7},
+    "צימוקים": {"proteins": 0.5, "fats": 0.2, "carbohydrates": 17, "dietaryFiber": 0.8},
+    "מלפפון": {"proteins": 0.7, "fats": 0.1, "carbohydrates": 2.5, "dietaryFiber": 0.5},
+    "פלפל": {"proteins": 1, "fats": 0.3, "carbohydrates": 6, "dietaryFiber": 2.1},
+    "שניצל": {"proteins": 18, "fats": 13, "carbohydrates": 8, "dietaryFiber": 0.5},
+    "טחינה": {"proteins": 17, "fats": 57, "carbohydrates": 10, "dietaryFiber": 10},
+    "עגבנייה": {"proteins": 0.9, "fats": 0.2, "carbohydrates": 3.9, "dietaryFiber": 1.2},
+    "פירה": {"proteins": 2, "fats": 0.1, "carbohydrates": 15, "dietaryFiber": 1.5},
+    "אפונה": {"proteins": 5, "fats": 0.4, "carbohydrates": 14, "dietaryFiber": 5},
+    "מעדן סויה אפרסק": {"proteins": 4.4, "fats": 2.25, "carbohydrates": 24.5, "dietaryFiber": 3},
+    "שקדים טבעיים": {"proteins": 21, "fats": 49, "carbohydrates": 22, "dietaryFiber": 12.5},
+    "פאי אגסים וקפה קטן": {"proteins": 3.3, "fats": 12.1, "carbohydrates": 40.4, "dietaryFiber": 2},
+    "עוגת תפוחים": {"proteins": 3, "fats": 13, "carbohydrates": 38, "dietaryFiber": 1.5},
+    "צלחת מרק סלרי": {"proteins": 1, "fats": 0.5, "carbohydrates": 4, "dietaryFiber": 1.5},
+    "קוטג'": {"proteins": 11, "fats": 4.3, "carbohydrates": 3.5, "dietaryFiber": 0},
+    "ריבה": {"proteins": 0.3, "fats": 0.1, "carbohydrates": 65, "dietaryFiber": 0.5},
+    "סלט ביצים": {"proteins": 13, "fats": 10, "carbohydrates": 1, "dietaryFiber": 0},
+    "ביצים": {"proteins": 13, "fats": 10, "carbohydrates": 1, "dietaryFiber": 0},
+    "שעועית ירוקה": {"proteins": 1.8, "fats": 0.1, "carbohydrates": 7, "dietaryFiber": 3.4},
+    "קינואה": {"proteins": 4.4, "fats": 1.9, "carbohydrates": 21.3, "dietaryFiber": 2.8},
+    "עוף": {"proteins": 26.5, "fats": 3.6, "carbohydrates": 0, "dietaryFiber": 0},
+    "פתיתים": {"proteins": 5, "fats": 1, "carbohydrates": 30, "dietaryFiber": 1.2},
+    "כרובית מבושלת": {"proteins": 2, "fats": 0.3, "carbohydrates": 5, "dietaryFiber": 2.5},
+    "כרובית": {"proteins": 2, "fats": 0.3, "carbohydrates": 5, "dietaryFiber": 2.5},
+    "תפו\"א": {"proteins": 2, "fats": 0.1, "carbohydrates": 15, "dietaryFiber": 1.5},
+    "תפוחי אדמה": {"proteins": 2, "fats": 0.1, "carbohydrates": 15, "dietaryFiber": 1.5},
+    "מרק ירקות": {"proteins": 1.5, "fats": 0.5, "carbohydrates": 8, "dietaryFiber": 2},
+    "מרק אפונה": {"proteins": 5, "fats": 1, "carbohydrates": 15, "dietaryFiber": 5},
+}
+
+# חישוב ערכים תזונתיים לארוחות מורכבות
+def calculate_complex_meal_nutrition(meal_name):
+    # ערכים דיפולטיביים
+    nutrition = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    
+    # בדיקה אם יש התאמה מדויקת במסד הנתונים
+    if meal_name in nutrition_db:
+        return nutrition_db[meal_name]
+    
+    # פיצול הארוחה למרכיבים
+    components = []
+    for food in nutrition_db.keys():
+        if food in meal_name:
+            components.append(food)
+    
+    # אם לא נמצאו מרכיבים, החזר ערכים דיפולטיביים
+    if not components:
+        return nutrition
+    
+    # חישוב הערכים התזונתיים על ידי סכימת המרכיבים
+    # עבור ארוחות מורכבות, נתאים את המנות
+    for component in components:
+        if "חצי" in meal_name and component == "פיתה":
+            # חצי פיתה
+            for nutrient in nutrition:
+                nutrition[nutrient] += nutrition_db[component][nutrient] * 0.5
+        elif "רבע" in meal_name and component == "פיתה":
+            # רבע פיתה
+            for nutrient in nutrition:
+                nutrition[nutrient] += nutrition_db[component][nutrient] * 0.25
+        elif "50 גרם" in meal_name and component == "עוף":
+            # 50 גרם עוף (בערך חצי מנה)
+            for nutrient in nutrition:
+                nutrition[nutrient] += nutrition_db[component][nutrient] * 0.5
+        elif "קטן" in meal_name and component == "שניצל":
+            # שניצל קטן
+            for nutrient in nutrition:
+                nutrition[nutrient] += nutrition_db[component][nutrient] * 0.7
+        elif "קערת" in meal_name and component == "קורנפלקס":
+            # קערת קורנפלקס
+            for nutrient in nutrition:
+                nutrition[nutrient] += nutrition_db[component][nutrient] * 0.6  # התאמת גודל המנה
+        elif component in meal_name:
+            # מרכיב רגיל
+            for nutrient in nutrition:
+                nutrition[nutrient] += nutrition_db[component][nutrient] * 0.8  # התאמה קטנה עבור מזונות משולבים
+    
+    # עיגול ערכים לספרה אחת אחרי הנקודה
+    for nutrient in nutrition:
+        nutrition[nutrient] = round(nutrition[nutrient], 1)
+    
+    return nutrition
+
+# פונקציות עיבוד
 translated_data_global = {}
-processed_file_path = ""
+original_full_json = {}
 
-# --- עזר: הכנת הדאטה פריים ---
+def translate_value(value, key=None):
+    if key == "notes" and not value:
+        return value
+    if isinstance(value, str):
+        if value in translation_cache:
+            return translation_cache[value]
+        hebrew_chars = any('\u0590' <= c <= '\u05FF' for c in value)
+        if hebrew_chars:
+            try:
+                result = translator.translate(value, "English")
+                translation_cache[value] = result.result
+                return result.result
+            except:
+                return value
+        return value
+    elif isinstance(value, dict):
+        return {k: translate_value(v, k) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [translate_value(item) for item in value]
+    else:
+        return value
 
+def extract_food_nutrition(food_name):
+    # קודם בדוק התאמה מדויקת
+    if food_name in nutrition_db:
+        return nutrition_db[food_name]
+    # השתמש במחשבון ארוחות מורכבות
+    return calculate_complex_meal_nutrition(food_name)
+
+def upload_and_process(file_obj):
+    global translated_data_global, original_full_json
+    try:
+        with open(file_obj.name, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        original_full_json = json.loads(content)
+        
+        # וודא שכל המפתחות הנדרשים קיימים, כולל שדה 'feelings'
+        keys_to_check = ["nutritions", "activities", "medications", "symptoms", "medicines", "feelings"]
+        for key in keys_to_check:
+            if key not in original_full_json:
+                original_full_json[key] = []
+        
+        # מזג 'feelings' לתוך 'symptoms' אם צריך
+        if "feelings" in original_full_json and isinstance(original_full_json["feelings"], list):
+            # הוסף כל תחושה לסימפטומים באותו מבנה
+            for feeling in original_full_json["feelings"]:
+                if isinstance(feeling, dict):
+                    # כבר בפורמט הנכון
+                    original_full_json["symptoms"].append(feeling)
+                elif isinstance(feeling, list):
+                    # רשימה של תחושות
+                    original_full_json["symptoms"].extend(feeling)
+        
+        # המר שדות תאריך לפורמט סטנדרטי אם הם קיימים
+        date_keys = ["nutritions", "activities", "medications", "symptoms", "medicines"]
+        for key in date_keys:
+            if key in original_full_json:
+                for item in original_full_json[key]:
+                    if "dateTaken" in item:
+                        item["date"] = item["dateTaken"]
+                    # וודא שתאריכים בפורמט עקבי
+                    if "date" in item:
+                        try:
+                            item["date"] = pd.to_datetime(item["date"]).isoformat()
+                        except:
+                            pass
+        
+        # וודא שתרופות/מטופלות עקביות
+        if "medicines" in original_full_json and "medications" not in original_full_json:
+            original_full_json["medications"] = original_full_json["medicines"]
+        elif "medications" in original_full_json and "medicines" not in original_full_json:
+            original_full_json["medicines"] = original_full_json["medications"]
+        
+        keys_to_update = ["nutritions", "activities", "medications", "symptoms", "medicines"]
+
+        for key in keys_to_update:
+            if key in original_full_json:
+                section = original_full_json[key]
+                if isinstance(section, list):
+                    for item in section:
+                        if isinstance(item, dict):
+                            # עדכן ערכים תזונתיים עבור פריטי מזון
+                            if key == "nutritions" and "foodName" in item:
+                                food_name = item["foodName"]
+                                item["nutritionalValues"] = extract_food_nutrition(food_name)
+                
+                # תרגם את המקטע
+                original_full_json[key] = translate_value(section)
+
+        translated_data_global = original_full_json
+
+        # שמור את הנתונים המעובדים
+        output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(translated_data_global, f, ensure_ascii=False, indent=2)
+
+        return output_path, "✅ File processed successfully! All nutritional values have been updated and data has been fully translated."
+    except Exception as e:
+        return None, f"❌ Error processing: {str(e)}"
+
+# פונקציה חדשה: מיצוי דפוסי זמן
+def extract_time_patterns(data, field_type, mood_field):
+    """מיצוי דפוסים מבוססי זמן עבור שדה ומצב רוח נתונים"""
+    if not data:
+        return {}
+    
+    try:
+        # קבל נקודות נתונים רלוונטיות
+        mood_data = []
+        if "symptoms" in data:
+            for item in data["symptoms"]:
+                if "date" in item and "type" in item and item.get("type") == mood_field:
+                    mood_data.append({
+                        "date": pd.to_datetime(item["date"]),
+                        "severity": item.get("severity", 0)
+                    })
+        
+        # קבל את נתוני השדה הנבחר
+        field_data = []
+        if field_type in data:
+            for item in data[field_type]:
+                if "date" in item:
+                    field_data.append({
+                        "date": pd.to_datetime(item["date"]),
+                        "data": item
+                    })
+        
+        if not mood_data or not field_data:
+            return {}
+        
+        # צור DataFrames
+        mood_df = pd.DataFrame(mood_data)
+        field_df = pd.DataFrame(field_data)
+        
+        # חלץ דפוס שעות היום
+        mood_df["hour"] = mood_df["date"].dt.hour
+        field_df["hour"] = field_df["date"].dt.hour
+        
+        # קבץ לפי שעות היום
+        morning_mood = mood_df[mood_df["hour"] < 12]["severity"].mean()
+        afternoon_mood = mood_df[(mood_df["hour"] >= 12) & (mood_df["hour"] < 18)]["severity"].mean()
+        evening_mood = mood_df[mood_df["hour"] >= 18]["severity"].mean()
+        
+        morning_count = len(field_df[field_df["hour"] < 12])
+        afternoon_count = len(field_df[(field_df["hour"] >= 12) & (field_df["hour"] < 18)])
+        evening_count = len(field_df[field_df["hour"] >= 18])
+        
+        return {
+            "morning_mood": morning_mood,
+            "afternoon_mood": afternoon_mood,
+            "evening_mood": evening_mood,
+            "morning_count": morning_count,
+            "afternoon_count": afternoon_count,
+            "evening_count": evening_count
+        }
+    except Exception as e:
+        print(f"Error in time pattern extraction: {str(e)}")
+        return {}
+
+# ניתוח אשכולות תזונה
+def analyze_nutrition_clusters(data, mood_field):
+    if not data or "nutritions" not in data or "symptoms" not in data:
+        return "Not enough data for clustering analysis."
+    
+    try:
+        # הכן נתונים לאשכול
+        nutrition_data = []
+        for item in data["nutritions"]:
+            if "nutritionalValues" in item and "date" in item:
+                nutrition_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "proteins": item["nutritionalValues"].get("proteins", 0),
+                    "fats": item["nutritionalValues"].get("fats", 0),
+                    "carbs": item["nutritionalValues"].get("carbohydrates", 0),
+                    "fiber": item["nutritionalValues"].get("dietaryFiber", 0),
+                    "food_name": item.get("foodName", "")
+                })
+        
+        # קבל נתוני מצב רוח
+        mood_data = []
+        for item in data["symptoms"]:
+            if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
+                mood_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "severity": item.get("severity", 0)
+                })
+        
+        if len(nutrition_data) < 5 or len(mood_data) < 5:
+            return "Not enough data points for clustering analysis."
+        
+        # צור DataFrames
+        nutrition_df = pd.DataFrame(nutrition_data)
+        mood_df = pd.DataFrame(mood_data)
+        
+        # צרף תזונה עם נתוני מצב רוח (תוך 3 שעות)
+        merged_data = []
+        for _, nutr_row in nutrition_df.iterrows():
+            nutr_date = nutr_row["date"]
+            # מצא את מדידת מצב הרוח הקרובה ביותר
+            closest_mood = None
+            min_diff = float('inf')
+            
+            for _, mood_row in mood_df.iterrows():
+                mood_date = mood_row["date"]
+                diff = abs((nutr_date - mood_date).total_seconds() / 3600)  # שעות
+                
+                if diff < min_diff and diff <= 3:  # תוך 3 שעות
+                    min_diff = diff
+                    closest_mood = mood_row["severity"]
+            
+            if closest_mood is not None:
+                nutr_dict = nutr_row.to_dict()
+                nutr_dict["mood"] = closest_mood
+                merged_data.append(nutr_dict)
+        
+        if len(merged_data) < 5:
+            return "Not enough matched data points for clustering."
+        
+        analysis_df = pd.DataFrame(merged_data)
+        
+        # הכן מאפיינים לאשכול
+        features = ["proteins", "fats", "carbs", "fiber"]
+        X = analysis_df[features]
+        
+        # נרמל מאפיינים
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        # קבע מספר אשכולות אופטימלי (2-4)
+        silhouette_scores = []
+        for k in range(2, 5):
+            if len(X_scaled) > k:  # ודא שיש מספיק נקודות נתונים
+                kmeans = KMeans(n_clusters=k, random_state=42)
+                cluster_labels = kmeans.fit_predict(X_scaled)
+                silhouette_avg = silhouette_score(X_scaled, cluster_labels)
+                silhouette_scores.append((k, silhouette_avg))
+        
+        if not silhouette_scores:
+            return "Not enough data for meaningful clusters."
+        
+        # בחר את מספר האשכולות הטוב ביותר
+        best_k = max(silhouette_scores, key=lambda x: x[1])[0]
+        
+        # אשכול סופי
+        kmeans = KMeans(n_clusters=best_k, random_state=42)
+        analysis_df["cluster"] = kmeans.fit_predict(X_scaled)
+        
+        # נתח אשכולות
+        cluster_results = []
+        for cluster_id in range(best_k):
+            cluster_data = analysis_df[analysis_df["cluster"] == cluster_id]
+            avg_mood = cluster_data["mood"].mean()
+            avg_proteins = cluster_data["proteins"].mean()
+            avg_fats = cluster_data["fats"].mean()
+            avg_carbs = cluster_data["carbs"].mean()
+            avg_fiber = cluster_data["fiber"].mean()
+            
+            cluster_results.append({
+                "cluster_id": cluster_id,
+                "count": len(cluster_data),
+                "avg_mood": round(avg_mood, 2),
+                "nutrition_profile": {
+                    "proteins": round(avg_proteins, 1),
+                    "fats": round(avg_fats, 1),
+                    "carbs": round(avg_carbs, 1),
+                    "fiber": round(avg_fiber, 1)
+                },
+                "common_foods": Counter(cluster_data["food_name"]).most_common(3)
+            })
+        
+        # מיין אשכולות לפי מצב רוח (הטוב ביותר לגרוע ביותר)
+        cluster_results.sort(key=lambda x: x["avg_mood"])
+        
+        return cluster_results
+    except Exception as e:
+        return f"Error in cluster analysis: {str(e)}"
+
+# מציאת חוקי אסוציאציה בין תרופות וסימפטומים
+def analyze_medication_patterns(data, mood_field):
+    if not data or "medications" not in data or "symptoms" not in data:
+        return "Not enough data for medication pattern analysis."
+    
+    try:
+        # חילוץ נתוני תרופות
+        med_data = []
+        for item in data.get("medications", []):
+            if "date" in item and "name" in item:
+                med_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "name": item["name"],
+                    "quantity": item.get("quantity", 1)
+                })
+        
+        # קבל נתוני מצב רוח/סימפטום
+        mood_data = []
+        for item in data["symptoms"]:
+            if "date" in item and "type" in item and "severity" in item:
+                mood_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "type": item["type"],
+                    "severity": item["severity"]
+                })
+        
+        if len(med_data) < 5 or len(mood_data) < 5:
+            return "Not enough data points for medication analysis."
+        
+        # צור DataFrames
+        med_df = pd.DataFrame(med_data)
+        mood_df = pd.DataFrame(mood_data)
+        
+        # קבץ לפי יום ליצירת טרנזקציות
+        med_df["day"] = med_df["date"].dt.date
+        mood_df["day"] = mood_df["date"].dt.date
+        
+        # צור סט נתוני טרנזקציות
+        days = sorted(set(list(med_df["day"]) + list(mood_df["day"])))
+        transactions = []
+        
+        for day in days:
+            day_meds = med_df[med_df["day"] == day]["name"].unique().tolist()
+            
+            # עבור מצב רוח, קבל את הממוצע של אותו יום
+            day_mood_df = mood_df[(mood_df["day"] == day) & (mood_df["type"] == mood_field)]
+            
+            if not day_mood_df.empty:
+                avg_severity = day_mood_df["severity"].mean()
+                mood_level = f"{mood_field}_Level_{round(avg_severity)}"
+                transaction = day_meds + [mood_level]
+                transactions.append(transaction)
+        
+        if len(transactions) < 5:
+            return "Not enough daily data for pattern analysis."
+        
+        # הפעל אלגוריתם Apriori עבור סטים תדירים
+        te = TransactionEncoder()
+        te_ary = te.fit(transactions).transform(transactions)
+        df = pd.DataFrame(te_ary, columns=te.columns_)
+        
+        # מצא סטים תדירים
+        frequent_itemsets = apriori(df, min_support=0.1, use_colnames=True)
+        
+        if frequent_itemsets.empty:
+            return "No significant patterns found with current support threshold."
+        
+        # צור חוקי אסוציאציה
+        rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.5)
+        
+        if rules.empty:
+            return "No strong association rules found."
+        
+        # סנן חוקים הקשורים לרמות מצב רוח
+        mood_rules = []
+        for _, rule in rules.iterrows():
+            antecedents = list(rule["antecedents"])
+            # בדיקה אם אנטיצדנט או קונסקוונט מכילים דירוגי רמת מצב רוח
+            mood_level_pattern = f"{mood_field}_Level_"
+            has_mood = False
+            
+            for item in list(rule["antecedents"]) + list(rule["consequents"]):
+                if isinstance(item, str) and item.startswith(mood_level_pattern):
+                    has_mood = True
+                    break
+            
+            if has_mood:
+                rule_dict = {
+                    "antecedents": list(rule["antecedents"]),
+                    "consequents": list(rule["consequents"]),
+                    "confidence": rule["confidence"],
+                    "lift": rule["lift"]
+                }
+                mood_rules.append(rule_dict)
+        
+        if len(mood_rules) == 0:
+            return "No significant medication-mood associations found."
+            
+        # מיון לפי lift (חשיבות)
+        mood_rules.sort(key=lambda x: x["lift"], reverse=True)
+        
+        return mood_rules[:5]  # החזר 5 חוקים עליונים
+    except Exception as e:
+        return f"Error in medication pattern analysis: {str(e)}"
+
+# ניתוח דפוסי פעילות
+def analyze_activity_patterns(data, mood_field):
+    if not data or "activities" not in data or "symptoms" not in data:
+        return "Not enough data for activity pattern analysis."
+    
+    try:
+        # חילוץ נתוני פעילות
+        activity_data = []
+        for item in data.get("activities", []):
+            if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
+                activity_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "name": item["activityName"],
+                    "duration": item.get("duration", 0),
+                    "intensity": item.get("intensity", "Low"),
+                    "notes": item.get("notes", "")
+                })
+        
+        # קבל נתוני מצב רוח/סימפטום
+        mood_data = []
+        for item in data["symptoms"]:
+            if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
+                mood_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "severity": item.get("severity", 0)
+                })
+        
+        if len(activity_data) < 5 or len(mood_data) < 5:
+            return "Not enough data points for activity analysis."
+        
+        # צור DataFrames
+        activity_df = pd.DataFrame(activity_data)
+        mood_df = pd.DataFrame(mood_data)
+        
+        # המר עוצמה למספרי
+        intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
+        activity_df["intensity_score"] = activity_df["intensity"].map(lambda x: intensity_map.get(x, 1))
+        
+        # חשב ציון פעילות (משך * עוצמה)
+        activity_df["activity_score"] = activity_df["duration"] * activity_df["intensity_score"]
+        
+        # התאם פעילויות עם מצב רוח (תוך 6 שעות)
+        matched_data = []
+        
+        for _, act_row in activity_df.iterrows():
+            act_date = act_row["date"]
+            
+            # מצא מדידות מצב רוח אחרי הפעילות (תוך 6 שעות)
+            relevant_moods = mood_df[(mood_df["date"] >= act_date) & 
+                                    (mood_df["date"] <= act_date + pd.Timedelta(hours=6))]
+            
+            if not relevant_moods.empty:
+                # קח את ממוצע מצב הרוח אם ישנם מספר רשומות
+                avg_mood = relevant_moods["severity"].mean()
+                
+                matched_data.append({
+                    "date": act_date,
+                    "activity_name": act_row["name"],
+                    "duration": act_row["duration"],
+                    "intensity": act_row["intensity"],
+                    "activity_score": act_row["activity_score"],
+                    "mood_after": avg_mood
+                })
+        
+        if len(matched_data) < 3:
+            return "Not enough matched activity-mood data for analysis."
+        
+        matched_df = pd.DataFrame(matched_data)
+        
+        # קבץ לפי שם פעילות
+        activity_analysis = []
+        
+        for activity_name, group in matched_df.groupby("activity_name"):
+            if len(group) >= 2:  # לפחות 2 מופעים
+                avg_duration = group["duration"].mean()
+                avg_score = group["activity_score"].mean()
+                avg_mood = group["mood_after"].mean()
+                
+                # מתאם בין ציון פעילות ומצב רוח (אם יש מספיק נקודות נתונים)
+                correlation = None
+                if len(group) >= 3:
+                    if group["activity_score"].std() > 0 and group["mood_after"].std() > 0:
+                        correlation, _ = pearsonr(group["activity_score"], group["mood_after"])
+                
+                activity_analysis.append({
+                    "activity_name": activity_name,
+                    "count": len(group),
+                    "avg_duration": round(avg_duration, 1),
+                    "avg_mood_after": round(avg_mood, 2),
+                    "correlation": round(correlation, 3) if correlation is not None else None
+                })
+        
+        # מיין לפי השפעת מצב רוח (הגבוה ביותר תחילה)
+        activity_analysis.sort(key=lambda x: x["avg_mood_after"], reverse=True)
+        
+        return activity_analysis
+    except Exception as e:
+        return f"Error in activity pattern analysis: {str(e)}"
+
+# יצירת לוח מחוונים מקיף לניתוח דפוסים
+def create_pattern_dashboard(data):
+    if not data:
+        return "No data available for analysis."
+    
+    try:
+        # הגדר שדות מצב רוח לניתוח
+        mood_fields = ["Parkinson's State", "Physical State", "My Mood"]
+        dashboard_data = {}
+        
+        # עבור כל שדה מצב רוח/מצב
+        for mood_field in mood_fields:
+            field_results = {}
+            
+            # נתח דפוסי תזונה
+            nutrition_clusters = analyze_nutrition_clusters(data, mood_field)
+            field_results["nutrition_patterns"] = nutrition_clusters
+            
+            # נתח דפוסי תרופות
+            medication_patterns = analyze_medication_patterns(data, mood_field)
+            field_results["medication_patterns"] = medication_patterns
+            
+            # נתח דפוסי פעילות
+            activity_patterns = analyze_activity_patterns(data, mood_field)
+            field_results["activity_patterns"] = activity_patterns
+            
+            # חלץ דפוסי זמן עבור כל סוג נתונים
+            for field_type in ["nutritions", "medications", "activities"]:
+                time_patterns = extract_time_patterns(data, field_type, mood_field)
+                field_results[f"{field_type}_time_patterns"] = time_patterns
+            
+            dashboard_data[mood_field] = field_results
+        
+        return dashboard_data
+    except Exception as e:
+        return f"Error creating dashboard: {str(e)}"
+
+# סכם תובנות בפורמט טקסט
+def summarize_insights(dashboard_data):
+    if not isinstance(dashboard_data, dict):
+        return "No data available for insights."
+    
+    insights = []
+    
+    try:
+        # עבד כל שדה מצב רוח
+        for mood_field, field_data in dashboard_data.items():
+            insights.append(f"## Insights for {mood_field}:")
+            
+            # 1. תובנות תזונה
+            nutrition_patterns = field_data.get("nutrition_patterns", [])
+            if isinstance(nutrition_patterns, list) and len(nutrition_patterns) > 0:
+                insights.append("\n### Nutrition Patterns:")
+                
+                # מיין אשכולות לפי השפעת מצב רוח
+                best_clusters = sorted(nutrition_patterns, key=lambda x: x.get("avg_mood", 0))
+                
+                if len(best_clusters) > 0:
+                    best_cluster = best_clusters[0]  # אשכול עם מצב רוח הטוב ביותר
+                    worst_cluster = best_clusters[-1] if len(best_clusters) > 1 else None  # אשכול עם מצב רוח הגרוע ביותר
+                    
+                    if best_cluster:
+                        foods = ", ".join([f"{food[0]} ({food[1]} times)" for food in best_cluster.get("common_foods", [])[:2]])
+                        insights.append(f"- **Beneficial Nutrition Profile**: Foods high in "
+                                      f"Protein: {best_cluster.get('nutrition_profile', {}).get('proteins', 0)}g, "
+                                      f"Fiber: {best_cluster.get('nutrition_profile', {}).get('fiber', 0)}g "
+                                      f"(like {foods}) associated with better {mood_field} ratings.")
+                    
+                    if worst_cluster:
+                        foods = ", ".join([f"{food[0]} ({food[1]} times)" for food in worst_cluster.get("common_foods", [])[:2]])
+                        insights.append(f"- **Less Beneficial Nutrition**: Foods with "
+                                      f"Fat: {worst_cluster.get('nutrition_profile', {}).get('fats', 0)}g, "
+                                      f"Carbs: {worst_cluster.get('nutrition_profile', {}).get('carbs', 0)}g "
+                                      f"(like {foods}) associated with lower {mood_field} ratings.")
+            
+            # 2. תובנות תרופות
+            medication_patterns = field_data.get("medication_patterns", [])
+            if isinstance(medication_patterns, list) and len(medication_patterns) > 0:
+                insights.append("\n### Medication Patterns:")
+                
+                for idx, rule in enumerate(medication_patterns[:3]):
+                    antecedents = list(rule.get("antecedents", []))
+                    consequents = list(rule.get("consequents", []))
+                    
+                    # חלץ תרופות ורמות מצב רוח
+                    meds = []
+                    mood_level = None
+                    
+                    for item in antecedents + consequents:
+                        if isinstance(item, str):
+                            if item.startswith(f"{mood_field}_Level_"):
+                                mood_level = item.replace(f"{mood_field}_Level_", "Rating: ")
+                            else:
+                                meds.append(item)
+                    
+                    if meds and mood_level:
+                        meds_str = ", ".join(meds)
+                        insights.append(f"- **Medication Association**: {meds_str} associated with {mood_field} {mood_level} "
+                                      f"(Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})")
+            
+            # 3. תובנות פעילות
+            activity_patterns = field_data.get("activity_patterns", [])
+            if isinstance(activity_patterns, list) and len(activity_patterns) > 0:
+                insights.append("\n### Activity Patterns:")
+                
+                for idx, activity in enumerate(activity_patterns[:3]):
+                    insights.append(f"- **{activity.get('activity_name', 'Activity')}**: "
+                                  f"Average duration {activity.get('avg_duration', 0)} minutes, "
+                                  f"associated with {mood_field} rating of {activity.get('avg_mood_after', 0):.1f}/5 afterward.")
+                    
+                    if activity.get('correlation') is not None:
+                        corr = activity.get('correlation')
+                        if abs(corr) > 0.3:
+                            direction = "positive" if corr > 0 else "negative"
+                            strength = "strong" if abs(corr) > 0.7 else "moderate"
+                            insights.append(f"  - {strength.capitalize()} {direction} correlation ({corr:.2f}) between activity intensity and {mood_field}")
+            
+            # 4. תובנות דפוסי זמן
+            for field_type in ["nutritions", "medications", "activities"]:
+                time_patterns = field_data.get(f"{field_type}_time_patterns", {})
+                
+                if time_patterns and isinstance(time_patterns, dict):
+                    morning_mood = time_patterns.get("morning_mood")
+                    afternoon_mood = time_patterns.get("afternoon_mood")
+                    evening_mood = time_patterns.get("evening_mood")
+                    
+                    if morning_mood is not None and afternoon_mood is not None and evening_mood is not None:
+                        best_time = "morning" if morning_mood >= max(afternoon_mood, evening_mood) else "afternoon" if afternoon_mood >= max(morning_mood, evening_mood) else "evening"
+                        
+                        insights.append(f"\n- **{field_type.capitalize()} Timing**: Best {mood_field} ratings observed in the {best_time} "
+                                      f"(M: {morning_mood:.1f}, A: {afternoon_mood:.1f}, E: {evening_mood:.1f})")
+        
+        # צרף את כל התובנות עם קווים חדשים
+        return "\n".join(insights)
+    except Exception as e:
+        return f"Error generating insights: {str(e)}"
+
+# הכנת נתונים לממשק הפשוט
 def prepare_activity_and_mood_data(data, mood_field):
     if not data or "activities" not in data or "symptoms" not in data:
         return pd.DataFrame(), pd.DataFrame()
@@ -29,7 +843,7 @@ def prepare_activity_and_mood_data(data, mood_field):
 
     mood_list = []
     for item in data.get("symptoms", []):
-        if "date" in item and item.get("type") == mood_field and "severity" in item:
+        if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
             mood_list.append({
                 "date": pd.to_datetime(item["date"]),
                 "value": item["severity"]
@@ -53,7 +867,7 @@ def prepare_medication_and_mood_data(data, mood_field):
 
     mood_list = []
     for item in data.get("symptoms", []):
-        if "date" in item and item.get("type") == mood_field and "severity" in item:
+        if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
             mood_list.append({
                 "date": pd.to_datetime(item["date"]),
                 "value": item["severity"]
@@ -77,7 +891,7 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
     mood_list = []
     for item in data.get("symptoms", []):
-        if "date" in item and item.get("type") == mood_field and "severity" in item:
+        if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
             mood_list.append({
                 "date": pd.to_datetime(item["date"]),
                 "value": item["severity"]
@@ -86,8 +900,7 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
     return symptom_df, mood_df
 
-# --- ניתוחים ודפוסים ---
-
+# פונקציות יצירת תובנות לממשק הפשוט
 def generate_activity_insights(activity_df, mood_df):
     insights = "🏃 Activity Insights:\n"
 
@@ -234,35 +1047,74 @@ def generate_symptom_insights(symptom_df, mood_df):
 
     return insights
 
-# --- חיבור לגרידיו ---
-
+# פונקציות עיבוד קובץ
 def upload_json(file_obj):
-    global translated_data_global, processed_file_path
+    global translated_data_global
     if file_obj is None:
         return None, "❌ No file uploaded."
     try:
-        content = file_obj.read()
-        data = json.loads(content)
-        translated_data_global = data
-        temp_path = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
-        with open(temp_path.name, "w", encoding="utf-8") as f:
-            json.dump(translated_data_global, f, ensure_ascii=False, indent=2)
-        processed_file_path = temp_path.name
-        return processed_file_path, "✅ File uploaded and processed."
+        # נשתמש בפונקציה המקורית שכוללת תרגום וניתוח תזונתי
+        processed_file, status = upload_and_process(file_obj)
+        return processed_file, status
     except Exception as e:
         return None, f"❌ Error: {str(e)}"
 
+# פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
-    return generate_activity_insights(activity_df, mood_df)
+    basic_insights = generate_activity_insights(activity_df, mood_df)
+    
+    # שלב את התובנות הבסיסיות עם הניתוח המתקדם
+    advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
+    
+    if isinstance(advanced_analysis, str):
+        return basic_insights + "\n\n" + advanced_analysis
+    
+    detailed_insights = "\n\nDetailed Activity Analysis:\n"
+    for activity in advanced_analysis[:3]:
+        detailed_insights += f"- {activity.get('activity_name')}: {activity.get('avg_mood_after'):.1f}/5 rating after {activity.get('count')} activities\n"
+        if activity.get('correlation') is not None and abs(activity.get('correlation', 0)) > 0.3:
+            corr = activity.get('correlation')
+            direction = "positive" if corr > 0 else "negative"
+            detailed_insights += f"  (Shows {direction} correlation of {corr:.2f} with intensity)\n"
+    
+    return basic_insights + detailed_insights
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     medication_df, mood_df = prepare_medication_and_mood_data(translated_data_global, mood_field)
-    return generate_medication_insights(medication_df, mood_df)
+    basic_insights = generate_medication_insights(medication_df, mood_df)
+    
+    # שלב את התובנות הבסיסיות עם הניתוח המתקדם
+    advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
+    
+    if isinstance(advanced_analysis, str):
+        return basic_insights + "\n\n" + advanced_analysis
+    
+    detailed_insights = "\n\nDetailed Medication Patterns:\n"
+    for idx, rule in enumerate(advanced_analysis[:3]):
+        antecedents = list(rule.get("antecedents", []))
+        consequents = list(rule.get("consequents", []))
+        
+        meds = []
+        mood_level = None
+        
+        for item in antecedents + consequents:
+            if isinstance(item, str):
+                if item.startswith(f"{mood_field}_Level_"):
+                    mood_level = item.replace(f"{mood_field}_Level_", "Rating: ")
+                else:
+                    meds.append(item)
+        
+        if meds and mood_level:
+            meds_str = ", ".join(meds)
+            detailed_insights += f"- {meds_str} associated with {mood_level}\n"
+            detailed_insights += f"  (Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})\n"
+    
+    return basic_insights + detailed_insights
 
 def symptom_analysis_summary(mood_field):
     if not translated_data_global:
@@ -270,14 +1122,13 @@ def symptom_analysis_summary(mood_field):
     symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
     return generate_symptom_insights(symptom_df, mood_df)
 
-# --- יצירת האפליקציה ---
-
+# יצירת האפליקציה עם העיצוב החדש
 with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
 
     with gr.Row():
         file_input = gr.File(label="Upload JSON File")
-        upload_button = gr.Button("Upload and Process")
+        upload_button = gr.Button("Upload and Process", variant="primary", size="lg")
     
     output_text = gr.Textbox(label="Status", interactive=False)
     processed_file = gr.File(label="Download Processed File", interactive=False)
@@ -290,24 +1141,26 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
 
     with gr.Tabs():
         with gr.TabItem("🏃 Activity Analysis"):
-            activity_button = gr.Button("Analyze Activity Patterns")
+            activity_button = gr.Button("Analyze Activity Patterns", variant="primary")
             activity_output = gr.Markdown(label="Activity Insights")
         
         with gr.TabItem("💊 Medication Analysis"):
-            medication_button = gr.Button("Analyze Medication Patterns")
+            medication_button = gr.Button("Analyze Medication Patterns", variant="primary")
             medication_output = gr.Markdown(label="Medication Insights")
 
         with gr.TabItem("🩺 Symptom Analysis"):
-            symptom_button = gr.Button("Analyze Symptom Patterns")
+            symptom_button = gr.Button("Analyze Symptom Patterns", variant="primary")
             symptom_output = gr.Markdown(label="Symptom Insights")
 
+    # קישור הפונקציות לכפתורים
     upload_button.click(fn=upload_json, inputs=[file_input], outputs=[processed_file, output_text])
     activity_button.click(fn=activity_analysis_summary, inputs=[mood_selector], outputs=[activity_output])
     medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
     symptom_button.click(fn=symptom_analysis_summary, inputs=[mood_selector], outputs=[symptom_output])
 
-# --- הפעלת האפליקציה ---
-
+# הפעלת האפליקציה
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.launch(server_name='0.0.0.0', server_port=port)
+    
+    
