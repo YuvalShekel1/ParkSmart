@@ -391,7 +391,7 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
 # פונקציות יצירת תובנות בסיסיות (הקוד המתוקן)
 def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
-    insights = f"🏃 Activity impact on {mood_field}:\n"
+    insights = f"🏃 Activity impact on {mood_field}:<br>\n"
 
     if activity_df.empty or mood_df.empty:
         return insights + "• No activity or mood data available.\n"
@@ -452,13 +452,13 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
         
 
         if abs(diff) < 0.1:
-            insights += f"<span style='color:black'>−</span> {activity_name}: no significant impact on {mood_field}<br>\n"
+            insights += f"<span style='color:black; font-size: 24px'>•</span> {activity_name}: no significant impact on {mood_field}<br>\n"
             continue
 
         direction = "higher" if diff > 0 else "lower"
         verb = "increases" if direction == "higher" else "decreases"
-        symbol = "👍" if direction == "higher" else "👎"
         color = "green" if direction == "higher" else "red"
+        insights += f"<span style='color:{color}; font-size: 24px'>•</span> {activity_name}: {verb} {mood_field} by {abs(diff)} on average<br>\n"
         insights += f"<span style='color:{color}'>{symbol}</span> {activity_name}: {verb} {mood_field} by {abs(diff)} on average<br>\n"
 
     if insights.strip() == f"🏃 Activity impact on {mood_field}:":
