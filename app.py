@@ -1171,6 +1171,53 @@ def medication_analysis_summary(mood_field):
         return basic_insights + detailed_insights
     else:
         return basic_insights
+def nutrition_analysis_summary(mood_field):
+    if not translated_data_global:
+        return "Please upload and process data first."
+    
+    nutrition_df = pd.DataFrame([
+        {"date": pd.to_datetime(item["date"]), "item": item}
+        for item in translated_data_global.get("nutritions", [])
+        if "date" in item
+    ])
+
+    mood_df = pd.DataFrame([
+        {"date": pd.to_datetime(item["date"]), "value": item["severity"]}
+        for item in translated_data_global.get("symptoms", [])
+        if item.get("type") == mood_field and "date" in item and "severity" in item
+    ])
+
+    if nutrition_df.empty or mood_df.empty:
+        return "No data available for analysis."
+
+    insights = "🍽️ Nutrition Insights:\n"
+    combined = []
+
+    for _, food_row in nutrition_df.iterrows():
+        food_time = food_row["date"]
+        food_name = food_row["item"].get("foodName", "Unknown")
+
+        same_day_moods = mood_df[
+            (mood_df["date"] >= food_time) & (mood_df["date"].dt.date == food_time.date())
+        ]
+        if not same_day_moods.empty:
+            avg_mood = same_day_moods["value"].mean()
+            combined.append((food_name, avg_mood))
+
+    if not combined:
+        return insights + "No mood data found after meals."
+
+    df = pd.DataFrame(combined, columns=["food", "mood"])
+    grouped = df.groupby("food").agg(["count", "mean"])
+    grouped.columns = ["count", "avg_mood"]
+    grouped = grouped[grouped["count"] >= 2].sort_values("avg_mood", ascending=False)
+
+    for food, row in grouped.iterrows():
+        mood_level = round(row["avg_mood"], 1)
+        insights += f"- After eating {food} ({int(row['count'])} times): average {mood_field} = {mood_level}/5\n"
+
+    return insights
+
 
 def symptom_analysis_summary(mood_field):
     if not translated_data_global:
@@ -1219,12 +1266,17 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
         with gr.TabItem("🩺 Symptom Analysis"):
             symptom_button = gr.Button("Analyze Symptom Patterns", variant="primary")
             symptom_output = gr.Markdown(label="Symptom Insights")
+            
+        with gr.TabItem("🍽️ Nutrition Analysis"):
+            nutrition_button = gr.Button("Analyze Nutrition Patterns", variant="primary")
+            nutrition_output = gr.Markdown(label="Nutrition Insights")    
 
     # קישור הפונקציות לכפתורים
     upload_button.click(fn=upload_json, inputs=[file_input], outputs=[processed_file, output_text])
     activity_button.click(fn=activity_analysis_summary, inputs=[mood_selector], outputs=[activity_output])
     medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
     symptom_button.click(fn=symptom_analysis_summary, inputs=[mood_selector], outputs=[symptom_output])
+    nutrition_button.click(fn=nutrition_analysis_summary, inputs=[mood_selector], outputs=[nutrition_output])
 
 # הפעלת האפליקציה
 if __name__ == "__main__":
