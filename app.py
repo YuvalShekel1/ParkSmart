@@ -449,14 +449,16 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
         without_avg = np.mean(without_values)
         diff = round(with_avg - without_avg, 2)
 
+        
+
         if abs(diff) < 0.1:
+            insights += f"• <span style='color:black'>{activity_name}: no significant impact on {mood_field}</span>\n"
             continue
 
         direction = "higher" if diff > 0 else "lower"
-
         verb = "increases" if direction == "higher" else "decreases"
-        insights += f"{activity_name}: {verb} {mood_field} by {abs(diff)} on average\n"
-
+        color = "green" if direction == "higher" else "red"
+        insights += f"• <span style='color:{color}'>{activity_name}: {verb} {mood_field} by {abs(diff)} on average</span>\n"
 
     if insights.strip() == f"🏃 Activity impact on {mood_field}:":
         return insights + "\n• No significant activity patterns found."
@@ -1046,7 +1048,7 @@ def activity_analysis_summary(mood_field):
     
     # רק אם נוספו תובנות מפורטות מעבר לכותרת, החזר אותן
     if detailed_insights != "\n\nDetailed Activity Analysis:\n":
-        return basic_insights + detailed_insights
+        return basic_insights
     else:
         return basic_insights
 
