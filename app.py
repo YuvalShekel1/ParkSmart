@@ -422,11 +422,14 @@ def generate_activity_insights(activity_df, mood_df):
     for _, mood_row in mood_df.iterrows():
         mood_date = mood_row["date"]
         mood_value = mood_row["value"]
+
+        # קח פעילויות מאותו יום שהתרחשו לפני מדידת מצב הרוח
+        valid_activities = activity_df[
+            (activity_df["date"].dt.date == mood_date.date()) &
+            (activity_df["date"] <= mood_date)
+        ]
         
-        # קח פעילויות מאותו יום, לא רק עם תזמון מדויק
-        same_day_activities = activity_df[activity_df["date"].dt.date == mood_date.date()]
-        
-        for _, act_row in same_day_activities.iterrows():
+        for _, act_row in valid_activities.iterrows():
             activity_item = act_row["item"]
             activity_name = activity_item.get("activityName", "Unknown")
             
@@ -911,8 +914,9 @@ def analyze_activity_patterns(data, mood_field):
             act_date = act_row["date"]
             
             # מצא מדידות מצב רוח אחרי הפעילות (תוך 6 שעות)
-            relevant_moods = mood_df[(mood_df["date"] >= act_date) & 
-                                    (mood_df["date"] <= act_date + pd.Timedelta(hours=6))]
+            end_of_day = act_date.replace(hour=23, minute=59, second=59)
+            relevant_moods = mood_df[(mood_df["date"] >= act_date) &
+                                    (mood_df["date"] <= end_of_day)]
             
             if not relevant_moods.empty:
                 # קח את ממוצע מצב הרוח אם ישנם מספר רשומות
