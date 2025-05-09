@@ -431,7 +431,7 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
             if not mood_after.empty:
                 with_values.append(mood_after["value"].mean())
 
-        if len(with_values) < 1 or len(without_values) < 1:
+        if len(with_values) < 1:
             continue
 
         without_values = []
@@ -442,7 +442,7 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
             if not moods.empty:
                 without_values.append(moods["value"].mean())
 
-        if len(without_values) < 2:
+        if len(without_values) < 1:
             continue
 
         with_avg = np.mean(with_values)
