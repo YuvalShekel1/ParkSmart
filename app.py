@@ -391,92 +391,141 @@ def prepare_symptom_and_mood_data(data, mood_field):
     return symptom_df, mood_df
 
 # פונקציות יצירת תובנות בסיסיות (הקוד המתוקן)
-def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
-    insights_header = f"<h3><strong>🏃 Activity impact on {mood_field}:</strong></h3>\n"
+import pandas as pd
+import numpy as np
+from scipy.stats import ttest_ind
 
+def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
+    """
+    Generate insights about how activities affect mood states using standard libraries.
+    
+    Parameters:
+    -----------
+    activity_df : DataFrame
+        DataFrame containing activity data with 'date' and 'item' columns
+    mood_df : DataFrame
+        DataFrame containing mood data with 'date' and 'value' columns
+    mood_field : str, optional
+        Name of the mood field being analyzed, by default "My Mood"
+        
+    Returns:
+    --------
+    str
+        HTML-formatted insights about activities and their impact on mood
+    """
+    insights_header = f"<h3><strong>🏃 Activity impact on {mood_field}:</strong></h3>\n"
+    
+    # Check if dataframes are empty
     if activity_df.empty or mood_df.empty:
         return insights_header + "<span>• No activity or mood data available.</span>\n"
-
-    mood_df["day"] = mood_df["date"].dt.date
-    activity_df["day"] = activity_df["date"].dt.date
+    
+    # Convert datetime to date for grouping by day
+    mood_df = mood_df.copy()
+    activity_df = activity_df.copy()
+    mood_df["day"] = pd.to_datetime(mood_df["date"]).dt.date
+    activity_df["day"] = pd.to_datetime(activity_df["date"]).dt.date
+    
+    # Get all days with mood data
     all_days = set(mood_df["day"])
-    activity_names = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown")).unique()
-
-    green_insights = []
-    red_insights = []
-    black_insights = []
-
+    
+    # Extract activity names using pandas
+    activity_df["activity_name"] = activity_df["item"].apply(
+        lambda x: x.get("activityName", "Unknown") if isinstance(x, dict) else "Unknown"
+    )
+    activity_names = activity_df["activity_name"].unique()
+    
+    # Lists to store different types of insights
+    green_insights = []  # positive impact
+    red_insights = []    # negative impact
+    black_insights = []  # no significant impact
+    
+    # Analyze each activity
     for activity_name in activity_names:
+        # Skip activities with invalid names
         if not isinstance(activity_name, str) or len(activity_name.strip()) < 2:
             continue
-
-        act_subset = activity_df[activity_df["item"].apply(lambda x: x.get("activityName", "") == activity_name)]
+        
+        # Get all instances of this activity using pandas filtering
+        act_subset = activity_df[activity_df["activity_name"] == activity_name]
         if act_subset.empty:
             continue
-
+        
+        # Use pandas groupby to collect mood values on days with this activity
+        activity_days = set(act_subset["day"])
+        
+        # Get mood values for days with activity (after the activity time)
         with_values = []
-        activity_days = set()
-
         for _, row in act_subset.iterrows():
             act_time = row["date"]
-            act_day = act_time.date()
-            activity_days.add(act_day)
-
+            act_day = pd.to_datetime(act_time).date()
+            
+            # Get mood entries after this activity on the same day
             mood_after = mood_df[
                 (mood_df["date"] >= act_time) &
                 (mood_df["day"] == act_day)
             ]
-
+            
             if not mood_after.empty:
                 with_values.append(mood_after["value"].mean())
-
+        
         if len(with_values) < 1:
             continue
-
-        without_values = []
+            
+        # Collect mood values on days without this activity using pandas
         days_without_activity = all_days - activity_days
-
+        without_values = []
+        
         for day in days_without_activity:
             moods = mood_df[mood_df["day"] == day]
             if not moods.empty:
                 without_values.append(moods["value"].mean())
-
+        
         if len(without_values) < 1:
             continue
-
-        if len(with_values) >= 1 and len(without_values) >= 1:
-            mean_with = np.mean(with_values)
-            mean_without = np.mean(without_values)
-            direction = "increases" if mean_with > mean_without else "decreases"
-            diff = round(abs(mean_with - mean_without), 2)
-            color = "green" if direction == "increases" else "red"
-
-            if len(with_values) >= 2 and len(without_values) >= 2:
-                t_stat, p_val = ttest_ind(with_values, without_values, equal_var=False)
-                if p_val < 0.05:
-                    line = (
-                        f"<span style='color:{color}; font-size:24px'>•</span> "
-                        f"<strong>{activity_name}</strong>: {direction} {mood_field} by {diff} on average (p={p_val:.3f})<br>"
-                    )
-                    (green_insights if direction == "increases" else red_insights).append(line)
-                else:
-                    black_insights.append(
-                        f"<span style='color:black; font-size:22px'>—</span> "
-                        f"<strong>{activity_name}</strong>: no significant impact on {mood_field} (p={p_val:.3f})<br>"
-                    )
-            else:
-                # תוצאה ללא סטטיסטיקה — רק על בסיס ממוצעים
+        
+        # Use numpy for calculating means
+        mean_with = np.mean(with_values)
+        mean_without = np.mean(without_values)
+        direction = "increases" if mean_with > mean_without else "decreases"
+        diff = round(abs(mean_with - mean_without), 2)
+        color = "green" if direction == "increases" else "red"
+        
+        # Use scipy for statistical test
+        if len(with_values) >= 2 and len(without_values) >= 2:
+            # Welch's t-test (unequal variances t-test)
+            t_stat, p_val = ttest_ind(with_values, without_values, equal_var=False)
+            
+            if p_val < 0.05:
                 line = (
                     f"<span style='color:{color}; font-size:24px'>•</span> "
-                    f"<strong>{activity_name}</strong>: {direction} {mood_field} by {diff} on average<br>"
+                    f"<strong>{activity_name}</strong>: {direction} {mood_field} by {diff} on average (p={p_val:.3f})<br>"
                 )
-                (green_insights if direction == "increases" else red_insights).append(line)
-
-
+                if direction == "increases":
+                    green_insights.append(line)
+                else:
+                    red_insights.append(line)
+            else:
+                black_insights.append(
+                    f"<span style='color:black; font-size:22px'>—</span> "
+                    f"<strong>{activity_name}</strong>: no significant impact on {mood_field} (p={p_val:.3f})<br>"
+                )
+        else:
+            # Result without statistical significance - just based on averages
+            line = (
+                f"<span style='color:{color}; font-size:24px'>•</span> "
+                f"<strong>{activity_name}</strong>: {direction} {mood_field} by {diff} on average<br>"
+            )
+            if direction == "increases":
+                green_insights.append(line)
+            else:
+                red_insights.append(line)
+    
+    # Combine all insights
     combined = green_insights + red_insights + black_insights
+    
     if not combined:
         return insights_header + "<span>• No significant activity patterns found.</span>"
-
+    
     return insights_header + "\n".join(combined)
 
 
