@@ -385,167 +385,78 @@ def prepare_symptom_and_mood_data(data, mood_field):
     return symptom_df, mood_df
 
 # פונקציות יצירת תובנות בסיסיות (הקוד המתוקן)
-def generate_activity_insights(activity_df, mood_df):
-    insights = "🏃 Activity Insights:\n"
+def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
+    insights = f"🏃 Activity impact on {mood_field}:\n"
 
     if activity_df.empty or mood_df.empty:
-        return insights + "• No activities data available.\n"
+        return insights + "• No activity or mood data available.\n"
 
-    # ניתוח פעילויות - סינון שמות לא תקינים
-    all_activities = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown"))
-    
-    # סינון שמות פעילויות לא תקינים - רק אותיות בעברית, אנגלית ומספרים
-    valid_activities = []
-    activity_counts = {}
-    
-    for activity in all_activities:
-        # בדוק אם הפעילות תקינה - רק אותיות באנגלית, עברית, מספרים ורווחים
-        if activity and isinstance(activity, str):
-            is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in activity)
-            if is_valid and len(activity) >= 2:
-                valid_activities.append(activity)
-                if activity in activity_counts:
-                    activity_counts[activity] += 1
-                else:
-                    activity_counts[activity] = 1
-    
-    # מיון פעילויות לפי תדירות
-    sorted_activities = sorted(activity_counts.items(), key=lambda x: x[1], reverse=True)
-    
-    if sorted_activities:
-        insights += "• Activity frequency:\n"
-        for activity, count in sorted_activities:
-            if count > 0:
-                insights += f"  - {activity}: {count} times\n"
-    
-    # ניתוח קשר בין פעילויות למצב רוח - התמקדות בדפוסים
-    combined_data = []
-    for _, mood_row in mood_df.iterrows():
-        mood_date = mood_row["date"]
-        mood_value = mood_row["value"]
+    # הפוך את תאריכי mood לסט לפי תאריך
+    mood_df["day"] = mood_df["date"].dt.date
+    activity_df["day"] = activity_df["date"].dt.date
 
-        # קח פעילויות מאותו יום שהתרחשו לפני מדידת מצב הרוח
-        valid_activities = activity_df[
-            (activity_df["date"].dt.date == mood_date.date()) &
-            (activity_df["date"] <= mood_date)
-        ]
-        
-        for _, act_row in valid_activities.iterrows():
-            activity_item = act_row["item"]
-            activity_name = activity_item.get("activityName", "Unknown")
-            
-            # סינון שמות פעילויות לא תקינים
-            is_valid = False
-            if activity_name and isinstance(activity_name, str):
-                is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in activity_name)
-            
-            if is_valid and len(activity_name) >= 2:
-                duration = activity_item.get("duration", 0)
-                intensity = activity_item.get("intensity", "Unknown")
-                combined_data.append({
-                    "mood_value": mood_value,
-                    "activity_name": activity_name,
-                    "duration": duration,
-                    "intensity": intensity
-                })
+    all_days = set(mood_df["day"])
 
-    if combined_data:
-        analysis_df = pd.DataFrame(combined_data)
-        
-        # ניתוח השפעת פעילויות על מצב רוח
-        insights += "\n• Activity impact on mood state:\n"
-        
-        activity_mood_impact = {}
-        activity_types = analysis_df["activity_name"].unique()
-        
-        for activity in activity_types:
-            activity_data = analysis_df[analysis_df["activity_name"] == activity]
-            if len(activity_data) >= 1:
-                avg_mood = activity_data["mood_value"].mean()
-                avg_mood_rounded = round(avg_mood, 1)
-                mood_description = ""
-                
-                # הגדרת תיאור מצב רוח
-                if avg_mood >= 4.5:
-                    mood_description = "excellent"
-                elif avg_mood >= 4:
-                    mood_description = "very good"
-                elif avg_mood >= 3.5:
-                    mood_description = "good"
-                elif avg_mood >= 3:
-                    mood_description = "moderate"
-                elif avg_mood >= 2:
-                    mood_description = "below average"
-                else:
-                    mood_description = "poor"
-                
-                activity_mood_impact[activity] = {
-                    "count": len(activity_data),
-                    "avg_mood": avg_mood_rounded,
-                    "description": mood_description
-                }
-        
-        # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
-        sorted_impacts = sorted(activity_mood_impact.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
-        
-        for activity, impact in sorted_impacts:
-            insights += f"  - After {activity} ({impact['count']} times): Mood is {impact['description']} ({impact['avg_mood']}/5)\n"
-        
-        # ניתוח השפעת עוצמת הפעילות על מצב רוח
-        if "intensity" in analysis_df.columns and len(analysis_df) >= 3:
-            insights += "\n• Impact of activity intensity on mood:\n"
-            
-            # המר עוצמות למספרים לצורך חישוב
-            intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
-            analysis_df["intensity_num"] = analysis_df["intensity"].map(lambda x: intensity_map.get(x, 0))
-            
-            intensity_mood = {}
-            for intensity in ["Low", "Moderate", "High"]:
-                intensity_data = analysis_df[analysis_df["intensity"] == intensity]
-                if len(intensity_data) >= 1:
-                    avg_mood = intensity_data["mood_value"].mean()
-                    intensity_mood[intensity] = {
-                        "count": len(intensity_data),
-                        "avg_mood": round(avg_mood, 1)
-                    }
-            
-            # מיון לפי השפעה על מצב רוח
-            sorted_intensities = sorted(intensity_mood.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
-            
-            for intensity, data in sorted_intensities:
-                insights += f"  - {intensity} intensity activities ({data['count']} times): Mood averages {data['avg_mood']}/5\n"
-        
-        # ניתוח השפעת משך הפעילות
-        if "duration" in analysis_df.columns and len(analysis_df) >= 3:
-            # חלוקה למשכי זמן
-            analysis_df["duration_category"] = pd.cut(
-                analysis_df["duration"],
-                bins=[0, 30, 60, 120, float('inf')],
-                labels=["Short (<30 min)", "Medium (30-60 min)", "Long (1-2 hours)", "Very long (>2 hours)"]
-            )
-            
-            insights += "\n• Impact of activity duration on mood:\n"
-            
-            duration_mood = {}
-            for duration_cat in analysis_df["duration_category"].unique():
-                if pd.isna(duration_cat):
-                    continue
-                    
-                duration_data = analysis_df[analysis_df["duration_category"] == duration_cat]
-                if len(duration_data) >= 1:
-                    avg_mood = duration_data["mood_value"].mean()
-                    duration_mood[duration_cat] = {
-                        "count": len(duration_data),
-                        "avg_mood": round(avg_mood, 1)
-                    }
-            
-            # מיון לפי השפעה על מצב רוח
-            sorted_durations = sorted(duration_mood.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
-            
-            for duration_cat, data in sorted_durations:
-                insights += f"  - {duration_cat} ({data['count']} times): Mood averages {data['avg_mood']}/5\n"
-    
+    activity_names = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown")).unique()
+
+    for activity_name in activity_names:
+        if not isinstance(activity_name, str) or len(activity_name.strip()) < 2:
+            continue
+
+        # כל הפעילויות מאותו שם
+        act_subset = activity_df[activity_df["item"].apply(lambda x: x.get("activityName", "") == activity_name)]
+
+        if act_subset.empty:
+            continue
+
+        with_values = []
+        activity_days = set()
+
+        for _, row in act_subset.iterrows():
+            act_time = row["date"]
+            act_day = act_time.date()
+            activity_days.add(act_day)
+
+            # קבל מדדי mood מאחרי הפעילות ועד סוף היום
+            mood_after = mood_df[
+                (mood_df["date"] >= act_time) &
+                (mood_df["day"] == act_day)
+            ]
+
+            if not mood_after.empty:
+                with_values.append(mood_after["value"].mean())
+
+        if len(with_values) < 2:
+            continue
+
+        without_values = []
+        days_without_activity = all_days - activity_days
+
+        for day in days_without_activity:
+            moods = mood_df[mood_df["day"] == day]
+            if not moods.empty:
+                without_values.append(moods["value"].mean())
+
+        if len(without_values) < 2:
+            continue
+
+        with_avg = np.mean(with_values)
+        without_avg = np.mean(without_values)
+        diff = round(with_avg - without_avg, 2)
+
+        if abs(diff) < 0.1:
+            continue
+
+        direction = "higher" if diff > 0 else "lower"
+
+        insights += f"- {activity_name} ({len(with_values)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
+        insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n"
+
+    if insights.strip() == f"🏃 Activity impact on {mood_field}:":
+        return insights + "\n• No significant activity patterns found."
+
     return insights
+
 
 def generate_medication_insights(medication_df, mood_df):
     insights = "💊 Medication Insights:\n"
@@ -1091,7 +1002,7 @@ def activity_analysis_summary(mood_field):
         
     # נתח את הפעילויות בצורה בסיסית (לפי הממשק הפשוט)
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
-    basic_insights = generate_activity_insights(activity_df, mood_df)
+    basic_insights = generate_activity_insights(activity_df, mood_df, mood_field)
     
     # נתח את הפעילויות בצורה מתקדמת
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
