@@ -445,25 +445,26 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
             continue
 
         if len(with_values) >= 2 and len(without_values) >= 2:
-    t_stat, p_val = ttest_ind(with_values, without_values, equal_var=False)
+           t_stat, p_val = ttest_ind(with_values, without_values, equal_var=False)
     
-    if p_val < 0.05:
-        mean_with = np.mean(with_values)
-        mean_without = np.mean(without_values)
-        direction = "increases" if mean_with > mean_without else "decreases"
-        diff = round(abs(mean_with - mean_without), 2)
-        color = "green" if direction == "increases" else "red"
-        line = (
-            f"<span style='color:{color}; font-size:24px'>•</span> "
-            f"<strong>{activity_name}</strong>: {direction} {mood_field} by {diff} on average (p={p_val:.3f})<br>"
-        )
-        if direction == "increases":
-            green_insights.append(line)
-        else:
-            red_insights.append(line)
-    else:
-        black_insights.append(
-            f"<span style='color:black; font-size:22px'>—</span> <strong>{activity_name}</strong>: no significant impact on {mood_field} (p={p_val:.3f})<br>"
+           if p_val < 0.05:
+              mean_with = np.mean(with_values)
+              mean_without = np.mean(without_values)
+              direction = "increases" if mean_with > mean_without else "decreases"
+              diff = round(abs(mean_with - mean_without), 2)
+              color = "green" if direction == "increases" else "red"
+              line = (
+                  f"<span style='color:{color}; font-size:24px'>•</span> "
+                  f"<strong>{activity_name}</strong>: {direction} {mood_field} by {diff} on average (p={p_val:.3f})<br>"
+              )
+              if direction == "increases":
+                  green_insights.append(line)
+              else:
+                  red_insights.append(line)
+          else:
+              black_insights.append(
+                  f"<span style='color:black; font-size:22px'>—</span> <strong>{activity_name}</strong>: no significant impact on {mood_field} (p={p_val:.3f})<br>"
+              )
 
     combined = green_insights + red_insights + black_insights
     if not combined:
