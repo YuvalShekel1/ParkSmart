@@ -452,13 +452,13 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
         
 
         if abs(diff) < 0.1:
-            insights += f"• <span style='color:black'>{activity_name}: no significant impact on {mood_field}</span>\n"
+            insights += f"<span style='color:black'>•</span> {activity_name}: no significant impact on {mood_field}\n"
             continue
 
         direction = "higher" if diff > 0 else "lower"
         verb = "increases" if direction == "higher" else "decreases"
         color = "green" if direction == "higher" else "red"
-        insights += f"• <span style='color:{color}'>{activity_name}: {verb} {mood_field} by {abs(diff)} on average</span>\n"
+        insights += f"<span style='color:{color}'>•</span> {activity_name}: {verb} {mood_field} by {abs(diff)} on average\n"
 
     if insights.strip() == f"🏃 Activity impact on {mood_field}:":
         return insights + "\n• No significant activity patterns found."
