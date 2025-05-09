@@ -106,10 +106,10 @@ translation_cache = {
     "שחייה": "Swimming",
     "יוגה": "Yoga",
     "אימון כוח": "Strength Training",
-    "אימון טנש": "Tennis Training",
-    "אימון טנש קבוצתי": "Group Tennis Training",
+    "אימון טנש": "Tens Training",
+    "אימון טנש קבוצתי": "Group Tens Training",
     "משעה 2020 3 משחקים. הפסקה של 15 דקות לפני המשחקים": "From 8:20 PM, 3 games. 15-minute break before the games",
-    "טנש": "Tennis",
+    "טנש": "Tens",
 }
 
 # מילון ערכים תזונתיים מורחב
