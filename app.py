@@ -1256,7 +1256,7 @@ def nutrition_analysis_summary(mood_field):
 
     df = pd.DataFrame(enriched_data)
 
-    for key, label in nutrients.items():
+        for key, label in nutrients.items():
         if key not in df.columns:
             continue
 
@@ -1264,14 +1264,22 @@ def nutrition_analysis_summary(mood_field):
         with_nutrient = df[df[key] >= threshold]
         without_nutrient = df[df[key] < threshold]
 
-        if len(with_nutrient) >= 2 and len(without_nutrient) >= 2:
-            with_avg = with_nutrient["mood"].mean()
-            without_avg = without_nutrient["mood"].mean()
-            diff = round(with_avg - without_avg, 2)
-            direction = "higher" if diff > 0 else "lower"
+        if len(with_nutrient) < 2 or len(without_nutrient) < 2:
+            # אם אין מספיק השוואה — דלג
+            continue
 
-            insights += f"- {label} ({len(with_nutrient)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
-            insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n"
+        with_avg = with_nutrient["mood"].mean()
+        without_avg = without_nutrient["mood"].mean()
+        diff = round(with_avg - without_avg, 2)
+
+        # אם אין הבדל מובהק — לא להציג
+        if abs(diff) < 0.1:
+            continue
+
+        direction = "higher" if diff > 0 else "lower"
+        insights += f"- {label} ({len(with_nutrient)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
+        insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n"
+
 
     return insights
 
