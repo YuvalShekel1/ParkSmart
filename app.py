@@ -431,7 +431,7 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
             if not mood_after.empty:
                 with_values.append(mood_after["value"].mean())
 
-        if len(with_values) < 2:
+        if len(with_values) < 1 or len(without_values) < 1:
             continue
 
         without_values = []
@@ -454,8 +454,9 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
 
         direction = "higher" if diff > 0 else "lower"
 
-        insights += f"- {activity_name} ({len(with_values)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
-        insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n"
+        verb = "increases" if direction == "higher" else "decreases"
+        insights += f"{activity_name}: {verb} {mood_field} by {abs(diff)} on average\n"
+
 
     if insights.strip() == f"🏃 Activity impact on {mood_field}:":
         return insights + "\n• No significant activity patterns found."
