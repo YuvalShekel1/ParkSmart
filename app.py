@@ -1215,6 +1215,63 @@ def nutrition_analysis_summary(mood_field):
     for food, row in grouped.iterrows():
         mood_level = round(row["avg_mood"], 1)
         insights += f"- After eating {food} ({int(row['count'])} times): average {mood_field} = {mood_level}/5\n"
+    # תובנות לפי רכיבים תזונתיים — בסגנון של "Mood higher by X points when present"
+    insights += f"\n• Nutrient impact on {mood_field}:\n"
+
+    nutrients = {
+        "proteins": "Protein",
+        "carbohydrates": "Carbohydrates",
+        "fats": "Fats",
+        "dietaryFiber": "Fiber"
+    }
+
+    thresholds = {
+        "proteins": 10,
+        "carbohydrates": 20,
+        "fats": 10,
+        "dietaryFiber": 3
+    }
+
+    enriched_data = []
+    for _, food_row in nutrition_df.iterrows():
+        food_time = food_row["date"]
+        food_item = food_row["item"]
+        food_name = food_item.get("foodName", "Unknown")
+        nutrition = food_item.get("nutritionalValues", {})
+
+        same_day_moods = mood_df[
+            (mood_df["date"] >= food_time) & (mood_df["date"].dt.date == food_time.date())
+        ]
+
+        if same_day_moods.empty:
+            continue
+
+        avg_mood = same_day_moods["value"].mean()
+
+        enriched_data.append({
+            "food": food_name,
+            "mood": avg_mood,
+            **nutrition
+        })
+
+    df = pd.DataFrame(enriched_data)
+
+    for key, label in nutrients.items():
+        if key not in df.columns:
+            continue
+
+        threshold = thresholds[key]
+        with_nutrient = df[df[key] >= threshold]
+        without_nutrient = df[df[key] < threshold]
+
+        if len(with_nutrient) >= 2 and len(without_nutrient) >= 2:
+            with_avg = with_nutrient["mood"].mean()
+            without_avg = without_nutrient["mood"].mean()
+            diff = round(with_avg - without_avg, 2)
+            direction = "higher" if diff > 0 else "lower"
+
+            insights += f"- {label} ({len(with_nutrient)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
+            insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n"
 
     return insights
 
