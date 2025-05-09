@@ -105,6 +105,7 @@ translation_cache = {
     "ריצה": "Running",
     "שחייה": "Swimming",
     "יוגה": "Yoga",
+    "טאקי" "Taki game"
     "אימון כוח": "Strength Training",
     "אימון טנש": "Tens Training",
     "אימון טנש קבוצתי": "Group Tens Training",
