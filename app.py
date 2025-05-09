@@ -391,26 +391,25 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
 # פונקציות יצירת תובנות בסיסיות (הקוד המתוקן)
 def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
-    insights = f"🏃 Activity impact on {mood_field}:<br>\n"
+    insights_header = f"<h3><strong>🏃 Activity impact on {mood_field}:</strong></h3>\n"
 
     if activity_df.empty or mood_df.empty:
-        return insights + "• No activity or mood data available.\n"
+        return insights_header + "<span>• No activity or mood data available.</span>\n"
 
-    # הפוך את תאריכי mood לסט לפי תאריך
     mood_df["day"] = mood_df["date"].dt.date
     activity_df["day"] = activity_df["date"].dt.date
-
     all_days = set(mood_df["day"])
-
     activity_names = activity_df["item"].apply(lambda x: x.get("activityName", "Unknown")).unique()
+
+    green_insights = []
+    red_insights = []
+    black_insights = []
 
     for activity_name in activity_names:
         if not isinstance(activity_name, str) or len(activity_name.strip()) < 2:
             continue
 
-        # כל הפעילויות מאותו שם
         act_subset = activity_df[activity_df["item"].apply(lambda x: x.get("activityName", "") == activity_name)]
-
         if act_subset.empty:
             continue
 
@@ -422,7 +421,6 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
             act_day = act_time.date()
             activity_days.add(act_day)
 
-            # קבל מדדי mood מאחרי הפעילות ועד סוף היום
             mood_after = mood_df[
                 (mood_df["date"] >= act_time) &
                 (mood_df["day"] == act_day)
@@ -449,20 +447,30 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
         without_avg = np.mean(without_values)
         diff = round(with_avg - without_avg, 2)
 
-        
-
         if abs(diff) < 0.1:
-            insights += f"<span style='color:black; font-size: 24px'>•</span> {activity_name}: no significant impact on {mood_field}<br>\n"
-            continue
+            black_insights.append(
+                f"<span style='color:black; font-size:22px'>—</span> <strong>{activity_name}</strong>: no significant impact on {mood_field}<br>"
+            )
+        else:
+            direction = "higher" if diff > 0 else "lower"
+            verb = "increases" if diff > 0 else "decreases"
+            color = "green" if diff > 0 else "red"
+            bullet = "•"
+            line = (
+                f"<span style='color:{color}; font-size:24px'>{bullet}</span> "
+                f"<strong>{activity_name}</strong>: {verb} {mood_field} by {abs(diff)} on average<br>"
+            )
+            if color == "green":
+                green_insights.append(line)
+            else:
+                red_insights.append(line)
 
-        direction = "higher" if diff > 0 else "lower"
-        verb = "increases" if direction == "higher" else "decreases"
-        color = "green" if direction == "higher" else "red"
-        insights += f"<span style='color:{color}; font-size: 24px'>•</span> {activity_name}: {verb} {mood_field} by {abs(diff)} on average<br>\n"
-    if insights.strip() == f"🏃 Activity impact on {mood_field}:":
-        return insights + "\n• No significant activity patterns found."
+    combined = green_insights + red_insights + black_insights
+    if not combined:
+        return insights_header + "<span>• No significant activity patterns found.</span>"
 
-    return insights
+    return insights_header + "\n".join(combined)
+
 
 
 def generate_medication_insights(medication_df, mood_df):
