@@ -17,6 +17,8 @@ from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.linear_model import LinearRegression
+
 
 # סתימת אזהרות
 warnings.filterwarnings('ignore')
@@ -391,65 +393,61 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
 
 
+from sklearn.linear_model import LinearRegression
+
 def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
-    insights_header = f"<h3><strong>🏃 Activity impact on {mood_field} (ML-based):</strong></h3>\n"
-
+    header = f"### 🏃 Activity impact on {mood_field}:\n"
     if activity_df.empty or mood_df.empty:
-        return insights_header + "<span>• No activity or mood data available.</span>\n"
+        return header + "• Not enough data."
 
-    mood_df["day"] = mood_df["date"].dt.date
+    # הכן את היום
     activity_df["day"] = activity_df["date"].dt.date
+    mood_df["day"] = mood_df["date"].dt.date
 
-    matched_rows = []
-    for _, row in activity_df.iterrows():
-        act_time = row["date"]
-        act_day = row["day"]
-        mood_after = mood_df[(mood_df["date"] >= act_time) & (mood_df["day"] == act_day)]
+    # שלב רק Mood שנמדד אחרי הפעילות
+    matched = []
+    for _, act in activity_df.iterrows():
+        mood_after = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["day"] == act["day"])]
         if not mood_after.empty:
-            matched_rows.append({
-                "activity_name": row["item"].get("activityName", "Unknown"),
-                "duration": row["item"].get("duration", 0),
-                "intensity": row["item"].get("intensity", "Low"),
+            matched.append({
+                "activity": act["item"].get("activityName", "Unknown"),
+                "duration": act["item"].get("duration", 0),
+                "intensity": act["item"].get("intensity", "Low"),
                 "mood": mood_after["value"].mean()
             })
 
-    if len(matched_rows) < 5:
-        return insights_header + "<span>• Not enough matched data for analysis.</span>"
+    if len(matched) < 3:
+        return header + "• Not enough matched data."
 
-    df = pd.DataFrame(matched_rows)
+    df = pd.DataFrame(matched)
+    df = df[df["activity"].str.len() >= 2]
+    df = df[df["mood"].notnull()]
+
     if df.empty:
-        return insights_header + "<span>• No valid activity data found.</span>"
+        return header + "• No valid entries."
 
     intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
     df["intensity_score"] = df["intensity"].map(lambda x: intensity_map.get(x, 1))
     df["activity_score"] = df["duration"] * df["intensity_score"]
-
-    df_encoded = pd.get_dummies(df[["activity_name"]], prefix="activity")
-    X = pd.concat([df_encoded, df[["duration", "intensity_score", "activity_score"]]], axis=1)
+    X = pd.get_dummies(df[["activity"]])
     y = df["mood"]
 
-    if X.shape[0] < X.shape[1]:
-        return insights_header + "<span>• Not enough rows to fit model reliably.</span>"
+    if len(X) < 3 or X.shape[1] == 0:
+        return header + "• Not enough variation."
 
     model = LinearRegression()
     model.fit(X, y)
+    coefs = model.coef_
 
-    impact_text = insights_header
-    for i, col in enumerate(X.columns):
-        if col.startswith("activity_"):
-            coef = model.coef_[i]
-            activity = col.replace("activity_", "")
-            if abs(coef) < 0.1:
-                continue
-            direction = "increases" if coef > 0 else "decreases"
-            color = "green" if coef > 0 else "red"
-            diff = round(abs(coef), 2)
-            impact_text += f"<span style='color:{color}; font-size:24px'>•</span> <strong>{activity}</strong>: {direction} {mood_field} by {diff} on average<br>"
+    lines = []
+    for name, coef in zip(X.columns, coefs):
+        if abs(coef) >= 0.1:
+            verb = "increases" if coef > 0 else "decreases"
+            lines.append(f"- {name.replace('activity_', '')}: {verb} {mood_field} by {round(abs(coef), 2)} on average")
 
-    if "<strong>" not in impact_text:
-        impact_text += "<span>• No significant activity patterns found.</span>"
-
-    return impact_text
+    if not lines:
+        return header + "• No significant patterns found."
+    return header + "\n".join(lines)
 
 
 
