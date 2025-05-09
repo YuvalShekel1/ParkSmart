@@ -105,12 +105,17 @@ translation_cache = {
     "ריצה": "Running",
     "שחייה": "Swimming",
     "יוגה": "Yoga",
-    "טאקי" "Taki game"
     "אימון כוח": "Strength Training",
     "אימון טנש": "Tens Training",
     "אימון טנש קבוצתי": "Group Tens Training",
     "משעה 2020 3 משחקים. הפסקה של 15 דקות לפני המשחקים": "From 8:20 PM, 3 games. 15-minute break before the games",
     "טנש": "Tens",
+    "טאקי": "Taki (card game)",
+    "טורניר טנש": "Tens tournament",
+    "הרכבת כסאות גינה": "Assembling garden chairs",
+    "נסיעה לבית שאן": "Trip to Beit Shean",
+    "סיור במוזיאון גולני": "Tour at Golani Museum",
+    "עבודת גינה": "Garden work",
 }
 
 # מילון ערכים תזונתיים מורחב
