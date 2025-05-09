@@ -695,7 +695,7 @@ def generate_medication_insights(medication_df, mood_df):
     
     return insights
 
-def generate_symptom_insights(symptom_df, mood_df):
+def generate_symptom_insights(symptom_df, mood_df, mood_field):
     insights = "🩺 Symptom Insights:\n"
 
     if symptom_df.empty or mood_df.empty:
@@ -786,7 +786,7 @@ def generate_symptom_insights(symptom_df, mood_df):
     symptom_effects.sort(key=lambda x: x["diff"], reverse=True)
     
     if symptom_effects:
-        insights += "• Symptom impact on mood:\n"
+        insights += f"• Symptom impact on {mood_field}:\n"
         
         for effect in symptom_effects:
             if effect["significant"]:
@@ -1176,7 +1176,7 @@ def symptom_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
-    return generate_symptom_insights(symptom_df, mood_df)
+    return generate_symptom_insights(symptom_df, mood_df, mood_field)
 
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
