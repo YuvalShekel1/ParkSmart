@@ -461,7 +461,7 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
                   green_insights.append(line)
               else:
                   red_insights.append(line)
-          else:
+           else:
               black_insights.append(
                   f"<span style='color:black; font-size:22px'>—</span> <strong>{activity_name}</strong>: no significant impact on {mood_field} (p={p_val:.3f})<br>"
               )
