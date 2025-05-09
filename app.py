@@ -1255,8 +1255,7 @@ def nutrition_analysis_summary(mood_field):
         })
 
     df = pd.DataFrame(enriched_data)
-
-        for key, label in nutrients.items():
+    for key, label in nutrients.items():
         if key not in df.columns:
             continue
 
@@ -1278,7 +1277,8 @@ def nutrition_analysis_summary(mood_field):
 
         direction = "higher" if diff > 0 else "lower"
         insights += f"- {label} ({len(with_nutrient)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
-        insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n"
+        insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n" 
+       
 
 
     return insights
