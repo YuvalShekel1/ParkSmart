@@ -400,7 +400,7 @@ def prepare_symptom_and_mood_data(data, mood_field):
 from sklearn.linear_model import LinearRegression
 
 def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
- header = f"### 🏃 Activity impact on {mood_field}:\n"
+    header = f"### 🏃 Activity impact on {mood_field}:\n"
     if activity_df.empty or mood_df.empty:
         return header + "• Not enough data."
 
