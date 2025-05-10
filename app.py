@@ -18,7 +18,10 @@ from mlxtend.preprocessing import TransactionEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
-
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import mean_squared_error
 
 # סתימת אזהרות
 warnings.filterwarnings('ignore')
@@ -328,7 +331,7 @@ def prepare_activity_and_mood_data(data, mood_field):
         if "date" in item:
             activity_list.append({
                 "date": pd.to_datetime(item["date"]),
-                "item": item
+                **item
             })
     activity_df = pd.DataFrame(activity_list)
 
@@ -342,6 +345,7 @@ def prepare_activity_and_mood_data(data, mood_field):
     mood_df = pd.DataFrame(mood_list)
 
     return activity_df, mood_df
+
 
 def prepare_medication_and_mood_data(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -396,58 +400,53 @@ def prepare_symptom_and_mood_data(data, mood_field):
 from sklearn.linear_model import LinearRegression
 
 def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
-    header = f"### 🏃 Activity impact on {mood_field}:\n"
+ header = f"### 🏃 Activity impact on {mood_field}:\n"
     if activity_df.empty or mood_df.empty:
         return header + "• Not enough data."
 
-    # הכן את היום
     activity_df["day"] = activity_df["date"].dt.date
     mood_df["day"] = mood_df["date"].dt.date
 
-    # שלב רק Mood שנמדד אחרי הפעילות
     matched = []
     for _, act in activity_df.iterrows():
         mood_after = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["day"] == act["day"])]
         if not mood_after.empty:
             matched.append({
-                "activity": act["item"].get("activityName", "Unknown"),
-                "duration": act["item"].get("duration", 0),
-                "intensity": act["item"].get("intensity", "Low"),
+                "activity_name": act.get("activityName", "Unknown"),
+                "duration": act.get("duration", 0),
+                "intensity": act.get("intensity", "Low"),
                 "mood": mood_after["value"].mean()
             })
 
-    if len(matched) < 3:
-        return header + "• Not enough matched data."
-
     df = pd.DataFrame(matched)
-    df = df[df["activity"].str.len() >= 2]
+    df = df[df["activity_name"].str.len() >= 2]
     df = df[df["mood"].notnull()]
 
-    if df.empty:
-        return header + "• No valid entries."
+    if df.shape[0] < 3:
+        return header + "• Not enough matched data."
 
-    intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
-    df["intensity_score"] = df["intensity"].map(lambda x: intensity_map.get(x, 1))
-    df["activity_score"] = df["duration"] * df["intensity_score"]
-    X = pd.get_dummies(df[["activity"]])
+    X = df[["activity_name", "duration", "intensity"]]
     y = df["mood"]
 
-    if len(X) < 3 or X.shape[1] == 0:
-        return header + "• Not enough variation."
+    preprocessor = ColumnTransformer([
+        ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+    ], remainder='passthrough')
 
-    model = LinearRegression()
+    model = make_pipeline(preprocessor, LinearRegression())
     model.fit(X, y)
-    coefs = model.coef_
+
+    feature_names = model.named_steps["columntransformer"].get_feature_names_out()
+    coefs = model.named_steps["linearregression"].coef_
 
     lines = []
-    for name, coef in zip(X.columns, coefs):
+    for name, coef in zip(feature_names, coefs):
         if abs(coef) >= 0.1:
             verb = "increases" if coef > 0 else "decreases"
-            lines.append(f"- {name.replace('activity_', '')}: {verb} {mood_field} by {round(abs(coef), 2)} on average")
+            lines.append(f"- {name.split('__')[-1]}: {verb} {mood_field} by {round(abs(coef), 2)} on average")
 
     if not lines:
         return header + "• No significant patterns found."
-    return header + "\n".join(lines)
+    return header + "\n" + "\n".join(lines)
 
 
 
@@ -763,118 +762,72 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-    if not data or "activities" not in data or "symptoms" not in data:
+       if not data or "activities" not in data or "symptoms" not in data:
         return "Not enough data for activity pattern analysis."
-    
+
     try:
-        # חילוץ נתוני פעילות
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
-                # וודא שהשם המדויק של הפעילות נלקח מהשדה הנכון
-                activity_name = item.get("activityName", "")
-                if not activity_name or len(activity_name) < 2:
-                    continue  # דלג על פעילויות ללא שם תקין
-                
-                # סינון שמות פעילויות לא תקינים
-                is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in activity_name)
-                if not is_valid:
+                name = item["activityName"]
+                if not name or len(name) < 2:
                     continue
-                
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "name": activity_name,
-                    "duration": item.get("duration", 0),
-                    "intensity": item.get("intensity", "Low"),
-                    "notes": item.get("notes", "")
+                    "activity_name": name,
+                    "duration": item["duration"],
+                    "intensity": item["intensity"]
                 })
-        
-        # קבל נתוני מצב רוח/סימפטום
+
         mood_data = []
         for item in data["symptoms"]:
-            if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
+            if "date" in item and item.get("type") == mood_field and "severity" in item:
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "severity": item.get("severity", 0)
+                    "severity": item["severity"]
                 })
-        
+
         if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
-        
-        # צור DataFrames
+
         activity_df = pd.DataFrame(activity_data)
         mood_df = pd.DataFrame(mood_data)
-        
-        # המר עוצמה למספרי
-        intensity_map = {"Low": 1, "Moderate": 2, "High": 3}
-        activity_df["intensity_score"] = activity_df["intensity"].map(lambda x: intensity_map.get(x, 1))
-        
-        # חשב ציון פעילות (משך * עוצמה)
-        activity_df["activity_score"] = activity_df["duration"] * activity_df["intensity_score"]
-        
-        # התאם פעילויות עם מצב רוח (תוך 6 שעות)
+
         matched_data = []
-        
-        for _, act_row in activity_df.iterrows():
-            act_date = act_row["date"]
-            
-            # מצא מדידות מצב רוח אחרי הפעילות (תוך 6 שעות)
-            end_of_day = act_date.replace(hour=23, minute=59, second=59)
-            relevant_moods = mood_df[(mood_df["date"] >= act_date) &
-                                    (mood_df["date"] <= end_of_day)]
-            
+        for _, act in activity_df.iterrows():
+            end_of_day = act["date"].replace(hour=23, minute=59, second=59)
+            relevant_moods = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["date"] <= end_of_day)]
             if not relevant_moods.empty:
-                # קח את ממוצע מצב הרוח אם ישנם מספר רשומות
                 avg_mood = relevant_moods["severity"].mean()
-                
                 matched_data.append({
-                    "date": act_date,
-                    "activity_name": act_row["name"],
-                    "duration": act_row["duration"],
-                    "intensity_score": act_row["intensity_score"],
-                    "activity_score": act_row["activity_score"],
+                    "activity_name": act["activity_name"],
+                    "duration": act["duration"],
+                    "intensity": act["intensity"],
                     "mood_after": avg_mood
                 })
-        
+
         if len(matched_data) < 3:
             return "Not enough matched activity-mood data for analysis."
-        
-        matched_df = pd.DataFrame(matched_data)
-        
-        # קבץ לפי שם פעילות
-        activity_analysis = []
-        
-        for activity_name, group in matched_df.groupby("activity_name"):
-            if len(group) >= 2:  # לפחות 2 מופעים
-                # בדוק שם פעילות תקין
-                if not activity_name or len(activity_name) < 2:
-                    continue
-                
-                avg_duration = group["duration"].mean()
-                avg_score = group["activity_score"].mean()
-                avg_mood = group["mood_after"].mean()
-                
-                # מתאם בין ציון פעילות ומצב רוח (אם יש מספיק נקודות נתונים)
-                correlation = None
-                if len(group) >= 3:
-                    if group["activity_score"].std() > 0 and group["mood_after"].std() > 0:
-                        correlation, p_value = pearsonr(group["activity_score"], group["mood_after"])
-                        # אם הקורלציה לא מובהקת (p-value גבוה), אל תציג אותה
-                        if p_value > 0.2:
-                            correlation = None
-                
-                activity_analysis.append({
-                    "activity_name": activity_name,
-                    "count": len(group),
-                    "avg_duration": round(avg_duration, 1),
-                    "avg_mood_after": round(avg_mood, 2),
-                    "correlation": round(correlation, 3) if correlation is not None else None
-                })
-        
-        # מיין לפי השפעת מצב רוח (הגבוה ביותר תחילה)
-        activity_analysis.sort(key=lambda x: x["avg_mood_after"], reverse=True)
-        
-        return activity_analysis
+
+        df = pd.DataFrame(matched_data)
+        X = df[["activity_name", "duration", "intensity"]]
+        y = df["mood_after"]
+
+        preprocessor = ColumnTransformer([
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+        ], remainder='passthrough')
+
+        model = make_pipeline(preprocessor, LinearRegression())
+        model.fit(X, y)
+
+        coefs = model.named_steps["linearregression"].coef_
+        feature_names = model.named_steps["columntransformer"].get_feature_names_out()
+
+        result = []
+        for name, coef in zip(feature_names, coefs):
+            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
+
+        return result
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
 
@@ -992,50 +945,27 @@ def analyze_medication_patterns(data, mood_field):
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
-        
-    # נתח את הפעילויות בצורה בסיסית (לפי הממשק הפשוט)
+
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
     basic_insights = generate_activity_insights(activity_df, mood_df, mood_field)
-    
-    # נתח את הפעילויות בצורה מתקדמת
+
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
-    
-    # אם יש שגיאה או אין מספיק נתונים, החזר רק את הניתוח הבסיסי
+
     if isinstance(advanced_analysis, str):
-        if "Not enough" in advanced_analysis:
-            return basic_insights
         return basic_insights + "\n\n" + advanced_analysis
-    
-    # אם אין פעילויות לניתוח, החזר רק את הניתוח הבסיסי
+
     if not advanced_analysis:
         return basic_insights
-    
-    # בנה תובנות מפורטות על סמך הניתוח המתקדם
-    detailed_insights = "\n\nDetailed Activity Analysis:\n"
-    for activity in advanced_analysis[:3]:
-        # וודא שיש שם פעילות תקין
-        activity_name = activity.get('activity_name', '')
-        if not activity_name or len(activity_name) < 2 or activity_name == "Unknown":
-            continue
-            
-        # וודא שיש לפחות 2 מופעים של הפעילות
-        if activity.get('count', 0) < 2:
-            continue
-            
-        detailed_insights += f"- {activity_name}: {activity.get('avg_mood_after', 0):.1f}/5 rating after {activity.get('count')} activities\n"
-        
-        # רק אם יש קורלציה משמעותית וגם לפחות 3 מופעים, הצג אותה
-        if activity.get('correlation') is not None and abs(activity.get('correlation', 0)) > 0.3 and activity.get('count', 0) >= 3:
-            corr = activity.get('correlation')
-            direction = "positive" if corr > 0 else "negative"
-            explanation = "higher intensity = better mood" if corr > 0 else "lower intensity = better mood"
-            detailed_insights += f"  ({explanation}, correlation: {corr:.2f})\n"
-    
-    # רק אם נוספו תובנות מפורטות מעבר לכותרת, החזר אותן
-    if detailed_insights != "\n\nDetailed Activity Analysis:\n":
-        return basic_insights
-    else:
-        return basic_insights
+
+    detailed_insights = "\n\nDetailed Activity Analysis (ML-based):\n"
+    for item in advanced_analysis[:5]:
+        name = item.get("feature", "")
+        effect = item.get("effect")
+        if abs(effect) >= 0.1:
+            direction = "increases" if effect > 0 else "decreases"
+            detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
+
+    return basic_insights + detailed_insights
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
