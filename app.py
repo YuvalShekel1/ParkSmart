@@ -375,7 +375,6 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
 from sklearn.linear_model import LinearRegression
 
-
 def generate_medication_insights(medication_df, mood_df):
     insights = "💊 Medication Insights:\n"
 
