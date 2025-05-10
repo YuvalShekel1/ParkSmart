@@ -399,56 +399,6 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
 from sklearn.linear_model import LinearRegression
 
-def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
-    header = f"### 🏃 Activity impact on {mood_field}:\n"
-    if activity_df.empty or mood_df.empty:
-        return header + "• Not enough data."
-    activity_df["date"] = pd.to_datetime(activity_df["date"], errors="coerce")
-    activity_df["day"] = activity_df["date"].dt.date
-    mood_df["day"] = mood_df["date"].dt.date
-
-    matched = []
-    for _, act in activity_df.iterrows():
-        mood_after = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["day"] == act["day"])]
-        if not mood_after.empty:
-            matched.append({
-                "activity_name": act.get("activityName", "Unknown"),
-                "duration": act.get("duration", 0),
-                "intensity": act.get("intensity", "Low"),
-                "mood": mood_after["value"].mean()
-            })
-
-    df = pd.DataFrame(matched)
-    df = df[df["activity_name"].str.len() >= 2]
-    df = df[df["mood"].notnull()]
-
-    if df.shape[0] < 3:
-        return header + "• Not enough matched data."
-
-    X = df[["activity_name", "duration", "intensity"]]
-    y = df["mood"]
-
-    preprocessor = ColumnTransformer([
-        ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-    ], remainder='passthrough')
-
-    model = make_pipeline(preprocessor, LinearRegression())
-    model.fit(X, y)
-
-    feature_names = model.named_steps["columntransformer"].get_feature_names_out()
-    coefs = model.named_steps["linearregression"].coef_
-
-    lines = []
-    for name, coef in zip(feature_names, coefs):
-        if abs(coef) >= 0.1:
-            verb = "increases" if coef > 0 else "decreases"
-            lines.append(f"- {name.split('__')[-1]}: {verb} {mood_field} by {round(abs(coef), 2)} on average")
-
-    if not lines:
-        return header + "• No significant patterns found."
-    return header + "\n" + "\n".join(lines)
-
-
 
 def generate_medication_insights(medication_df, mood_df):
     insights = "💊 Medication Insights:\n"
@@ -946,18 +896,16 @@ def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
 
-    activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
-    basic_insights = generate_activity_insights(activity_df, mood_df, mood_field)
 
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
     if isinstance(advanced_analysis, str):
-        return basic_insights + "\n\n" + advanced_analysis
+        return  advanced_analysis
 
     if not advanced_analysis:
-        return basic_insights
+        return "No patterns found."
 
-    detailed_insights = "\n\nDetailed Activity Analysis (ML-based):\n"
+    detailed_insights = ""
     for item in advanced_analysis[:5]:
         name = item.get("feature", "")
         effect = item.get("effect")
@@ -965,7 +913,7 @@ def activity_analysis_summary(mood_field):
             direction = "increases" if effect > 0 else "decreases"
             detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
 
-    return basic_insights + detailed_insights
+    return detailed_insights
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
