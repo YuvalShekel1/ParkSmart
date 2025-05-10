@@ -323,7 +323,7 @@ def upload_and_process(file_obj):
 # --- עזר: הכנת הדאטה פריים ---
 
 def prepare_activity_and_mood_data(data, mood_field):
-    if not data or "activities" not in data or "symptoms" not in data:
+    if not data or "activities" not in data or "feelings" not in data:
         return pd.DataFrame(), pd.DataFrame()
 
     activity_list = []
@@ -336,7 +336,7 @@ def prepare_activity_and_mood_data(data, mood_field):
     activity_df = pd.DataFrame(activity_list)
 
     mood_list = []
-    for item in data.get("symptoms", []):
+    for item in data.get("feelings", []):
         if "date" in item and item.get("type") == mood_field and "severity" in item:
             mood_list.append({
                 "date": pd.to_datetime(item["date"]),
@@ -348,7 +348,7 @@ def prepare_activity_and_mood_data(data, mood_field):
 
 
 def prepare_medication_and_mood_data(data, mood_field):
-    if not data or "medications" not in data or "symptoms" not in data:
+    if not data or "medications" not in data or "feelings" not in data:
         return pd.DataFrame(), pd.DataFrame()
 
     medication_list = []
@@ -361,7 +361,7 @@ def prepare_medication_and_mood_data(data, mood_field):
     medication_df = pd.DataFrame(medication_list)
 
     mood_list = []
-    for item in data.get("symptoms", []):
+    for item in data.get("feelings", []):
         if "date" in item and item.get("type") == mood_field and "severity" in item:
             mood_list.append({
                 "date": pd.to_datetime(item["date"]),
@@ -372,7 +372,7 @@ def prepare_medication_and_mood_data(data, mood_field):
     return medication_df, mood_df
 
 def prepare_symptom_and_mood_data(data, mood_field):
-    if not data or "symptoms" not in data:
+    if not data or "symptoms" not in data or "feelings" not in data:
         return pd.DataFrame(), pd.DataFrame()
 
     symptom_list = []
@@ -385,7 +385,7 @@ def prepare_symptom_and_mood_data(data, mood_field):
     symptom_df = pd.DataFrame(symptom_list)
 
     mood_list = []
-    for item in data.get("symptoms", []):
+    for item in data.get("feelings", []):
         if "date" in item and item.get("type") == mood_field and "severity" in item:
             mood_list.append({
                 "date": pd.to_datetime(item["date"]),
