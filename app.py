@@ -403,7 +403,7 @@ def generate_activity_insights(activity_df, mood_df, mood_field="My Mood"):
     header = f"### 🏃 Activity impact on {mood_field}:\n"
     if activity_df.empty or mood_df.empty:
         return header + "• Not enough data."
-
+    activity_df["date"] = pd.to_datetime(activity_df["date"], errors="coerce")
     activity_df["day"] = activity_df["date"].dt.date
     mood_df["day"] = mood_df["date"].dt.date
 
