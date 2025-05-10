@@ -765,7 +765,7 @@ def analyze_activity_patterns(data, mood_field):
        if not data or "activities" not in data or "symptoms" not in data:
         return "Not enough data for activity pattern analysis."
 
-    try:
+       try:
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
