@@ -322,30 +322,6 @@ def upload_and_process(file_obj):
 
 # --- עזר: הכנת הדאטה פריים ---
 
-def prepare_activity_and_mood_data(data, mood_field):
-    if not data or "activities" not in data or "feelings" not in data:
-        return pd.DataFrame(), pd.DataFrame()
-
-    activity_list = []
-    for item in data.get("activities", []):
-        if "date" in item:
-            activity_list.append({
-                "date": pd.to_datetime(item["date"]),
-                **item
-            })
-    activity_df = pd.DataFrame(activity_list)
-
-    mood_list = []
-    for item in data.get("feelings", []):
-        if "date" in item and item.get("type") == mood_field and "severity" in item:
-            mood_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "value": item["severity"]
-            })
-    mood_df = pd.DataFrame(mood_list)
-
-    return activity_df, mood_df
-
 
 def prepare_medication_and_mood_data(data, mood_field):
     if not data or "medications" not in data or "feelings" not in data:
