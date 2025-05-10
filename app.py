@@ -828,7 +828,7 @@ def analyze_activity_patterns(data, mood_field):
             result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
-    except Exception as e:
+       except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
 
 def analyze_medication_patterns(data, mood_field):
