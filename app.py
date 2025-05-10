@@ -947,15 +947,15 @@ def activity_analysis_summary(mood_field):
         return "Please upload and process data first."
 
     activity_df, mood_df = prepare_activity_and_mood_data(translated_data_global, mood_field)
-   # basic_insights = generate_activity_insights(activity_df, mood_df, mood_field)
+    basic_insights = generate_activity_insights(activity_df, mood_df, mood_field)
 
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
     if isinstance(advanced_analysis, str):
-        return  advanced_analysis
+        return basic_insights + "\n\n" + advanced_analysis
 
-##    if not advanced_analysis:
-  #      return basic_insights
+    if not advanced_analysis:
+        return basic_insights
 
     detailed_insights = "\n\nDetailed Activity Analysis (ML-based):\n"
     for item in advanced_analysis[:5]:
@@ -965,7 +965,7 @@ def activity_analysis_summary(mood_field):
             direction = "increases" if effect > 0 else "decreases"
             detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
 
-    return detailed_insights
+    return basic_insights + detailed_insights
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
