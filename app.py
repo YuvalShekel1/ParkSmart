@@ -161,6 +161,7 @@ nutrition_db = {
     "מרק ירקות": {"proteins": 1.5, "fats": 0.5, "carbohydrates": 8, "dietaryFiber": 2},
     "מרק אפונה": {"proteins": 5, "fats": 1, "carbohydrates": 15, "dietaryFiber": 5},
 }
+
 # חישוב ערכים תזונתיים לארוחות מורכבות
 def calculate_complex_meal_nutrition(meal_name):
     # ערכים דיפולטיביים
@@ -239,7 +240,6 @@ def translate_value(value, key=None):
         return [translate_value(item) for item in value]
     else:
         return value
-
 def extract_food_nutrition(food_name):
     # קודם בדוק התאמה מדויקת
     if food_name in nutrition_db:
@@ -318,7 +318,9 @@ def upload_and_process(file_obj):
         return output_path, "✅ File processed successfully! All nutritional values have been updated and data has been fully translated."
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
+
 # --- עזר: הכנת הדאטה פריים ---
+
 
 def prepare_medication_and_mood_data(data, mood_field):
     if not data or "medications" not in data or "feelings" not in data:
@@ -368,6 +370,9 @@ def prepare_symptom_and_mood_data(data, mood_field):
 
     return symptom_df, mood_df
 
+
+
+from sklearn.linear_model import LinearRegression
 
 def generate_medication_insights(medication_df, mood_df):
     insights = "💊 Medication Insights:\n"
@@ -485,7 +490,7 @@ def generate_medication_insights(medication_df, mood_df):
                     "description": mood_description
                 }
         
-                # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
+        # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
         sorted_impacts = sorted(medication_mood_impact.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
         
         for medication, impact in sorted_impacts:
@@ -516,6 +521,7 @@ def generate_medication_insights(medication_df, mood_df):
             insights += "\n• Impact of medication dosage on mood:\n" + dosage_insights
     
     return insights
+
 def generate_symptom_insights(symptom_df, mood_df, mood_field):
     insights = "🩺 Symptom Insights:\n"
 
@@ -677,12 +683,13 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
                 insights += f"  - {pair['symptom1']} and {pair['symptom2']} tend to occur together ({pair['both_count']} times)\n"
     
     return insights
+
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-    if not data or "activities" not in data or "feelings" not in data:
+       if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
-    try:
+       try:
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
@@ -745,63 +752,36 @@ def analyze_activity_patterns(data, mood_field):
             result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
-    except Exception as e:
+       except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
-
-def analyze_symptom_patterns(data, mood_field):
+    def analyze_symptom_patterns(data, mood_field):
+    """
+    Analyzes symptom patterns and their relationship to the selected mood field
+    similar to the activity pattern analysis.
+    """
     if not data or "symptoms" not in data or "feelings" not in data:
         return "Not enough data for symptom pattern analysis."
 
     try:
         # Extract symptom data
         symptom_data = []
-        # Find all unique symptom types from the data
-        symptom_types = set()
-        
         for item in data.get("symptoms", []):
-            if "date" in item:
-                # Extract the symptom type if it exists
-                if "type" in item and item["type"] not in [mood_field, "Parkinson's State", "My Mood", "Physical State"]:
-                    symptom_types.add(item["type"])
+            if "date" in item and "type" in item:
+                # Skip entries that are mood/feeling entries to avoid circular analysis
+                if item.get("type") in ["Parkinson's State", "Physical State", "My Mood"]:
+                    continue
                 
-                # Also check for other fields that might be symptoms
-                for key in item.keys():
-                    if key not in ["date", "notes", "id", "Parkinson's State", "My Mood", "Physical State", 
-                                   "type", "severity", "createdAt", "updatedAt", "__v", "_id", "userId"]:
-                        symptom_types.add(key)
-        
-        # Create records of symptoms by date
-        for item in data.get("symptoms", []):
-            if "date" not in item:
-                continue
+                symptom_name = item.get("type", "")
+                # Skip invalid symptom names
+                if not symptom_name or len(symptom_name) < 2:
+                    continue
                 
-            date = pd.to_datetime(item["date"])
-            
-            # Create a record for each symptom present
-            symptoms_present = {}
-            
-            # Check for symptom in the type field
-            if "type" in item and item["type"] in symptom_types:
-                symptoms_present[item["type"]] = 1
-                if "severity" in item:
-                    symptoms_present[f"{item['type']}_severity"] = item["severity"]
-            
-            # Check for symptoms in other fields
-            for symptom_type in symptom_types:
-                if symptom_type in item and item[symptom_type]:
-                    symptoms_present[symptom_type] = 1
-                    # If there's a severity associated with it
-                    if isinstance(item[symptom_type], (int, float)):
-                        symptoms_present[f"{symptom_type}_severity"] = item[symptom_type]
-            
-            # Only add if symptoms were found
-            if symptoms_present:
                 symptom_data.append({
-                    "date": date,
-                    **symptoms_present
+                    "date": pd.to_datetime(item["date"]),
+                    "symptom_name": symptom_name,
+                    "severity": item.get("severity", 3)  # Default to middle severity if not specified
                 })
 
-        # Get mood data
         mood_data = []
         for item in data["feelings"]:
             if "date" in item and item.get("type") == mood_field and "severity" in item:
@@ -810,93 +790,61 @@ def analyze_symptom_patterns(data, mood_field):
                     "severity": item["severity"]
                 })
 
+        # Check if we have enough data
         if len(symptom_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for symptom analysis."
 
-        # Convert to DataFrames
         symptom_df = pd.DataFrame(symptom_data)
         mood_df = pd.DataFrame(mood_data)
 
-        # Match symptoms with mood data from the same day
+        # Match symptoms with mood on the same day
         matched_data = []
-        for idx, symp in symptom_df.iterrows():
-            day_start = symp["date"].replace(hour=0, minute=0, second=0)
-            day_end = symp["date"].replace(hour=23, minute=59, second=59)
-            
-            relevant_moods = mood_df[(mood_df["date"] >= day_start) & (mood_df["date"] <= day_end)]
-            
+        for _, sym in symptom_df.iterrows():
+            end_of_day = sym["date"].replace(hour=23, minute=59, second=59)
+            relevant_moods = mood_df[(mood_df["date"] >= sym["date"]) & (mood_df["date"] <= end_of_day)]
             if not relevant_moods.empty:
                 avg_mood = relevant_moods["severity"].mean()
-                
-                # Create record with symptoms and mood
-                record = {"mood_value": avg_mood}
-                
-                # Add all symptom columns
-                for col in symptom_df.columns:
-                    if col != "date":
-                        record[col] = symp[col]
-                
-                matched_data.append(record)
+                matched_data.append({
+                    "symptom_name": sym["symptom_name"],
+                    "severity": sym["severity"],
+                    "mood_after": avg_mood
+                })
 
+        # If we don't have enough matched data, return an error
         if len(matched_data) < 3:
             return "Not enough matched symptom-mood data for analysis."
 
-        # Create a DataFrame from matched data
+        # Prepare data for modeling
         df = pd.DataFrame(matched_data)
-        
-        # Separate features and target
-        feature_cols = [col for col in df.columns if col != "mood_value"]
-        if not feature_cols:
-            return "No symptom features found for analysis."
-            
-        X = df[feature_cols]
-        y = df["mood_value"]
+        X = df[["symptom_name", "severity"]]
+        y = df["mood_after"]
 
-        # Some features might be categorical, so we'll use a preprocessor
-        categorical_features = []
-        numerical_features = []
-        
-        for col in feature_cols:
-            if df[col].nunique() <= 5:  # Assuming categorical if 5 or fewer unique values
-                categorical_features.append(col)
-            else:
-                numerical_features.append(col)
-        
-        # Create the preprocessor
+        # Set up preprocessor for categorical variables
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["symptom_name"])
         ], remainder='passthrough')
 
-        # Create and fit the model
+        # Create and fit model
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
 
         # Extract coefficients and feature names
         coefs = model.named_steps["linearregression"].coef_
         feature_names = model.named_steps["columntransformer"].get_feature_names_out()
-        
-        # If there are no categorical features, just use the original feature names
-        if not categorical_features:
-            feature_names = X.columns
 
-        # Create a result list with feature names and effects
+        # Compile results
         result = []
         for name, coef in zip(feature_names, coefs):
-            # Extract the actual feature name from the preprocessor output
-            if '__' in name:
-                feature = name.split('__')[1]
-            else:
-                feature = name
-                
+            feature = name.split("__")[-1]
             result.append({"feature": feature, "effect": round(coef, 2)})
-        
-        # Sort by absolute effect size
+
+        # Sort by absolute effect value
         result.sort(key=lambda x: abs(x["effect"]), reverse=True)
         
         return result
-    
     except Exception as e:
         return f"Error in symptom pattern analysis: {str(e)}"
+
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
         return "Not enough data for medication pattern analysis."
@@ -1006,6 +954,7 @@ def analyze_medication_patterns(data, mood_field):
         return mood_rules[:5]  # החזר 5 חוקים עליונים
     except Exception as e:
         return f"Error in medication pattern analysis: {str(e)}"
+
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
@@ -1015,7 +964,7 @@ def activity_analysis_summary(mood_field):
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
     if isinstance(advanced_analysis, str):
-        return advanced_analysis
+        return  advanced_analysis
 
     if not advanced_analysis:
         return "No patterns found."
@@ -1029,7 +978,6 @@ def activity_analysis_summary(mood_field):
         detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
 
     return detailed_insights
-
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
@@ -1065,38 +1013,6 @@ def medication_analysis_summary(mood_field):
             detailed_insights += f"  (Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})\n"
     
     if detailed_insights != "\n\nDetailed Medication Patterns:\n":
-        return basic_insights + detailed_insights
-    else:
-        return basic_insights
-
-def symptom_analysis_summary(mood_field):
-    if not translated_data_global:
-        return "Please upload and process data first."
-    
-    # Get the basic insights
-    symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
-    basic_insights = generate_symptom_insights(symptom_df, mood_df, mood_field)
-    
-    # Get the advanced pattern analysis
-    advanced_analysis = analyze_symptom_patterns(translated_data_global, mood_field)
-    
-    if isinstance(advanced_analysis, str):
-        if "Not enough" in advanced_analysis or "No significant" in advanced_analysis:
-            return basic_insights
-        return basic_insights + "\n\n" + advanced_analysis
-    
-    # Format the advanced analysis results
-    detailed_insights = "\n\nSymptom Pattern Analysis:\n"
-    
-    for item in advanced_analysis:
-        feature = item.get("feature", "")
-        effect = item.get("effect", 0)
-        
-        if abs(effect) >= 0.1:  # Only show meaningful effects
-            direction = "increases" if effect > 0 else "decreases"
-            detailed_insights += f"- {feature}: {direction} {mood_field} by {abs(effect):.2f} points\n"
-    
-    if detailed_insights != "\n\nSymptom Pattern Analysis:\n":
         return basic_insights + detailed_insights
     else:
         return basic_insights
@@ -1210,6 +1126,44 @@ def nutrition_analysis_summary(mood_field):
         insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n" 
        
     return insights
+
+def symptom_analysis_summary(mood_field):
+    """
+    Generates a summary of symptom analysis, combining both basic insights and
+    advanced pattern analysis.
+    """
+    if not translated_data_global:
+        return "Please upload and process data first."
+    
+    # Get basic symptom insights
+    symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
+    basic_insights = generate_symptom_insights(symptom_df, mood_df, mood_field)
+    
+    # Get advanced pattern analysis
+    advanced_analysis = analyze_symptom_patterns(translated_data_global, mood_field)
+    
+    # If advanced analysis returned an error message, just return basic insights
+    if isinstance(advanced_analysis, str):
+        if "Not enough" in advanced_analysis or "No significant" in advanced_analysis:
+            return basic_insights
+        return basic_insights + "\n\n" + advanced_analysis
+    
+    # Format advanced insights
+    detailed_insights = "\n\nDetailed Symptom Impact Patterns:\n"
+    for item in advanced_analysis:
+        name = item.get("feature", "")
+        effect = item.get("effect")
+        
+        # Only show significant effects
+        if abs(effect) >= 0.1:
+            direction = "increases" if effect > 0 else "decreases"
+            detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
+    
+    # Only add detailed insights if we found any significant patterns
+    if detailed_insights != "\n\nDetailed Symptom Impact Patterns:\n":
+        return basic_insights + detailed_insights
+    else:
+        return basic_insights
 
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
