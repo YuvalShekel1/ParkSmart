@@ -486,7 +486,7 @@ def generate_medication_insights(medication_df, mood_df):
                 }
         
         # מיון
-        def generate_medication_insights(medication_df, mood_df):
+    def generate_medication_insights(medication_df, mood_df):
     insights = "💊 Medication Insights:\n"
 
     if medication_df.empty or mood_df.empty:
