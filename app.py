@@ -687,7 +687,7 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-       if not data or "activities" not in data or "symptoms" not in data:
+       if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
        try:
@@ -705,7 +705,7 @@ def analyze_activity_patterns(data, mood_field):
                 })
 
         mood_data = []
-        for item in data["symptoms"]:
+        for item in data["feelings"]:
             if "date" in item and item.get("type") == mood_field and "severity" in item:
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
