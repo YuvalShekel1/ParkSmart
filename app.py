@@ -884,9 +884,9 @@ def activity_analysis_summary(mood_field):
     for item in advanced_analysis[:5]:
         name = item.get("feature", "")
         effect = item.get("effect")
-        if abs(effect) >= 0.1:
-            direction = "increases" if effect > 0 else "decreases"
-            detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
+       # if abs(effect) >= 0.1:
+        direction = "increases" if effect > 0 else "decreases"
+        detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
 
     return detailed_insights
 
