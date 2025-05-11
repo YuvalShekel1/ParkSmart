@@ -318,7 +318,7 @@ def upload_and_process(file_obj):
         return output_path, "✅ File processed successfully! All nutritional values have been updated and data has been fully translated."
     except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
-    # --- עזר: הכנת הדאטה פריים ---
+# --- עזר: הכנת הדאטה פריים ---
 
 def prepare_medication_and_mood_data(data, mood_field):
     if not data or "medications" not in data or "feelings" not in data:
@@ -485,124 +485,7 @@ def generate_medication_insights(medication_df, mood_df):
                     "description": mood_description
                 }
         
-        # מיון
-    def generate_medication_insights(medication_df, mood_df):
-    insights = "💊 Medication Insights:\n"
-
-    if medication_df.empty or mood_df.empty:
-        return insights + "• No medication data available.\n"
-
-    # ניתוח תרופות - סינון שמות לא תקינים
-    all_medications = medication_df["item"].apply(lambda x: x.get("name", "Unknown"))
-    
-    # סינון שמות תרופות לא תקינים
-    valid_medications = []
-    medication_counts = {}
-    
-    for medication in all_medications:
-        # בדוק אם שם התרופה תקין
-        if medication and isinstance(medication, str):
-            is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in medication)
-            if is_valid and len(medication) >= 2:
-                valid_medications.append(medication)
-                if medication in medication_counts:
-                    medication_counts[medication] += 1
-                else:
-                    medication_counts[medication] = 1
-    
-    # מיון תרופות לפי תדירות
-    sorted_medications = sorted(medication_counts.items(), key=lambda x: x[1], reverse=True)
-    
-    if sorted_medications:
-        insights += "• Medication frequency:\n"
-        for medication, count in sorted_medications:
-            if count > 0:
-                insights += f"  - {medication}: {count} times\n"
-    
-    # אם יש נתוני מינון, נוסיף ניתוח מינון
-    if medication_df["item"].apply(lambda x: "quantity" in x).any():
-        insights += "\n• Medication dosages:\n"
-        
-        for medication, count in sorted_medications:
-            if count > 0:
-                med_items = medication_df[medication_df["item"].apply(lambda x: x.get("name", "") == medication)]
-                quantities = med_items["item"].apply(lambda x: float(x.get("quantity", 0)))
-                
-                if not quantities.empty and quantities.sum() > 0:
-                    min_dose = quantities.min()
-                    max_dose = quantities.max()
-                    avg_dose = quantities.mean()
-                    
-                    if min_dose == max_dose:
-                        insights += f"  - {medication}: Consistent dosage of {min_dose}\n"
-                    else:
-                        insights += f"  - {medication}: Varies between {min_dose} and {max_dose} (avg: {round(avg_dose, 1)})\n"
-    
-    # ניתוח השפעת תרופות על מצב רוח
-    combined_data = []
-    
-    # קח שילובים של מצב רוח ותרופות של אותו יום
-    for _, mood_row in mood_df.iterrows():
-        mood_date = mood_row["date"]
-        mood_value = mood_row["value"]
-        
-        same_day_meds = medication_df[medication_df["date"].dt.date == mood_date.date()]
-        
-        if not same_day_meds.empty:
-            for _, med_row in same_day_meds.iterrows():
-                med_item = med_row["item"]
-                med_name = med_item.get("name", "Unknown")
-                
-                # סינון שמות תרופות לא תקינים
-                is_valid = False
-                if med_name and isinstance(med_name, str):
-                    is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in med_name)
-                
-                if is_valid and len(med_name) >= 2:
-                    dosage = float(med_item.get("quantity", 0))
-                    combined_data.append({
-                        "mood_value": mood_value,
-                        "medication_name": med_name,
-                        "dosage": dosage
-                    })
-    
-    if combined_data:
-        analysis_df = pd.DataFrame(combined_data)
-        
-        # ניתוח השפעת תרופות על מצב רוח
-        insights += "\n• Medication impact on mood state:\n"
-        
-        medication_mood_impact = {}
-        medication_types = analysis_df["medication_name"].unique()
-        
-        for medication in medication_types:
-            medication_data = analysis_df[analysis_df["medication_name"] == medication]
-            if len(medication_data) >= 1:
-                avg_mood = medication_data["mood_value"].mean()
-                avg_mood_rounded = round(avg_mood, 1)
-                mood_description = ""
-                
-                # הגדרת תיאור מצב רוח
-                if avg_mood >= 4.5:
-                    mood_description = "excellent"
-                elif avg_mood >= 4:
-                    mood_description = "very good"
-                elif avg_mood >= 3.5:
-                    mood_description = "good"
-                elif avg_mood >= 3:
-                    mood_description = "moderate"
-                elif avg_mood >= 2:
-                    mood_description = "below average"
-                else:
-                    mood_description = "poor"
-                
-                medication_mood_impact[medication] = {
-                    "count": len(medication_data),
-                    "avg_mood": avg_mood_rounded,
-                    "description": mood_description
-                }
-        
-        # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
+                # מיון לפי השפעה על מצב רוח (מהגבוה לנמוך)
         sorted_impacts = sorted(medication_mood_impact.items(), key=lambda x: x[1]["avg_mood"], reverse=True)
         
         for medication, impact in sorted_impacts:
@@ -633,7 +516,7 @@ def generate_medication_insights(medication_df, mood_df):
             insights += "\n• Impact of medication dosage on mood:\n" + dosage_insights
     
     return insights
-    def generate_symptom_insights(symptom_df, mood_df, mood_field):
+def generate_symptom_insights(symptom_df, mood_df, mood_field):
     insights = "🩺 Symptom Insights:\n"
 
     if symptom_df.empty or mood_df.empty:
