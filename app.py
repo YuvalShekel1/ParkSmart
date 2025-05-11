@@ -687,10 +687,10 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-       if not data or "activities" not in data or "feelings" not in data:
+    if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
-       try:
+    try:
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
@@ -735,12 +735,24 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-        X = df[["activity_name", "duration", "intensity"]]
+
+        # חלוקה לקבוצות זמן
+        def duration_group(d):
+            if d < 30:
+                return "<30"
+            elif 30 <= d <= 60:
+                return "30–60"
+            else:
+                return ">60"
+
+        df["DurationGroup"] = df["duration"].apply(duration_group)
+
+        X = df[["activity_name", "DurationGroup", "intensity"]]
         y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "DurationGroup", "intensity"])
+        ], remainder='drop')
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -753,7 +765,8 @@ def analyze_activity_patterns(data, mood_field):
             result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
-       except Exception as e:
+
+    except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
 
 def analyze_medication_patterns(data, mood_field):
@@ -871,11 +884,10 @@ def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
 
-
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
     if isinstance(advanced_analysis, str):
-        return  advanced_analysis
+        return advanced_analysis
 
     if not advanced_analysis:
         return "No patterns found."
@@ -884,51 +896,22 @@ def activity_analysis_summary(mood_field):
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
-       # if abs(effect) >= 0.1:
         direction = "increases" if effect > 0 else "decreases"
-        detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
+
+        if name.startswith("DurationGroup_"):
+            group_label = name.replace("DurationGroup_", "")
+            if group_label == "<30":
+                phrase = "less than 30 minutes"
+            elif group_label == "30–60":
+                phrase = "30–60 minutes"
+            else:
+                phrase = "more than 60 minutes"
+            detailed_insights += f"- Activities lasting {phrase} {direction} {mood_field} by {abs(effect):.2f} on average\n"
+        else:
+            detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
 
     return detailed_insights
-
-def medication_analysis_summary(mood_field):
-    if not translated_data_global:
-        return "Please upload and process data first."
-    medication_df, mood_df = prepare_medication_and_mood_data(translated_data_global, mood_field)
-    basic_insights = generate_medication_insights(medication_df, mood_df)
-    
-    # שלב את התובנות הבסיסיות עם הניתוח המתקדם
-    advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
-    
-    if isinstance(advanced_analysis, str):
-        if "Not enough" in advanced_analysis or "No significant" in advanced_analysis:
-            return basic_insights
-        return basic_insights + "\n\n" + advanced_analysis
-    
-    detailed_insights = "\n\nDetailed Medication Patterns:\n"
-    for idx, rule in enumerate(advanced_analysis[:3]):
-        antecedents = list(rule.get("antecedents", []))
-        consequents = list(rule.get("consequents", []))
-        
-        meds = []
-        mood_level = None
-        
-        for item in antecedents + consequents:
-            if isinstance(item, str):
-                if item.startswith(f"{mood_field}_Level_"):
-                    mood_level = item.replace(f"{mood_field}_Level_", "Rating: ")
-                else:
-                    meds.append(item)
-        
-        if meds and mood_level:
-            meds_str = ", ".join(meds)
-            detailed_insights += f"- {meds_str} associated with {mood_level}\n"
-            detailed_insights += f"  (Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})\n"
-    
-    if detailed_insights != "\n\nDetailed Medication Patterns:\n":
-        return basic_insights + detailed_insights
-    else:
-        return basic_insights
-def nutrition_analysis_summary(mood_field):
+    def nutrition_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     
