@@ -881,7 +881,7 @@ def activity_analysis_summary(mood_field):
         return "No patterns found."
 
     detailed_insights = ""
-    for item in advanced_analysis[:5]:
+    for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
        # if abs(effect) >= 0.1:
