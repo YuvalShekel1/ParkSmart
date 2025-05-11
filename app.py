@@ -754,7 +754,7 @@ def analyze_activity_patterns(data, mood_field):
         return result
        except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
-    def analyze_symptom_patterns(data, mood_field):
+def analyze_symptom_patterns(data, mood_field):
     """
     Analyzes symptom patterns and their relationship to the selected mood field
     similar to the activity pattern analysis.
