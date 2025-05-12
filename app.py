@@ -697,20 +697,30 @@ def analyze_activity_patterns(data, mood_field):
                 name = item["activityName"]
                 if not name or len(name) < 2:
                     continue
+                duration = item["duration"]
+                if duration < 30:
+                    duration_group = "<30"
+                elif 30 <= duration <= 60:
+                    duration_group = "30–60"
+                else:
+                    duration_group = ">60"
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
-                    "duration": item["duration"],
-                    "intensity": item["intensity"]
+                    "duration": duration,
+                    "intensity": item["intensity"],
+                    "duration_group": duration_group,
+                    "activity_duration_combo": f"{name} ({duration_group})"
                 })
 
-        mood_data = []
-        for item in data["feelings"]:
-            if "date" in item and item.get("type") == mood_field and "severity" in item:
-                mood_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "severity": item["severity"]
-                })
+        mood_data = [
+            {
+                "date": pd.to_datetime(item["date"]),
+                "severity": item["severity"]
+            }
+            for item in data["feelings"]
+            if "date" in item and item.get("type") == mood_field and "severity" in item
+        ]
 
         if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
@@ -728,6 +738,8 @@ def analyze_activity_patterns(data, mood_field):
                     "activity_name": act["activity_name"],
                     "duration": act["duration"],
                     "intensity": act["intensity"],
+                    "duration_group": act["duration_group"],
+                    "activity_duration_combo": act["activity_duration_combo"],
                     "mood_after": avg_mood
                 })
 
@@ -736,20 +748,21 @@ def analyze_activity_patterns(data, mood_field):
 
         df = pd.DataFrame(matched_data)
 
-        # סנן החוצה קבוצות קטנות מדי (פחות מ-2 מופעים)
-        df_counts = df.groupby(["activity_name"]).filter(lambda x: len(x) >= 2)
-        df_duration = df.groupby(pd.cut(df["duration"], bins=[0, 30, 60, 1000])).filter(lambda x: len(x) >= 2)
-        df_intensity = df.groupby(["intensity"]).filter(lambda x: len(x) >= 2)
+        # סינון לפי תכונות שמופיעות לפחות פעמיים
+        for column in ["activity_name", "intensity", "duration_group", "activity_duration_combo"]:
+            counts = df[column].value_counts()
+            allowed_values = counts[counts >= 2].index.tolist()
+            df = df[df[column].isin(allowed_values)]
 
-        if df_counts.empty:
-            return "Not enough frequent activities to analyze."
+        if df.empty:
+            return "Not enough repeated activity patterns to analyze."
 
-        X = df_counts[["activity_name", "duration", "intensity"]]
-        y = df_counts["mood_after"]
+        X = df[["activity_name", "intensity", "duration_group", "activity_duration_combo"]]
+        y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
+            ("cat", OneHotEncoder(handle_unknown="ignore"), X.columns.tolist())
+        ])
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -759,11 +772,15 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
+            result.append({
+                "feature": name.split("__")[-1],
+                "effect": round(coef, 2)
+            })
 
         return result
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
+
 
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -897,28 +914,22 @@ def activity_analysis_summary(mood_field):
 
     for item in advanced_analysis:
         name = item.get("feature", "")
-        full_name = item.get("full", "")
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        if "combined2" in full_name:
-            parts = full_name.split("__")
-            if len(parts) == 3:
-                label = f"{parts[1].strip().title()} ({parts[2].strip().capitalize()} intensity)"
-            else:
-                label = full_name
-        elif "combined" in full_name:
-            parts = full_name.split("__")
-            if len(parts) == 3:
-                label = f"{parts[1].strip().title()} ({parts[2]})"
-            else:
-                label = full_name
-        elif "activity_name" in full_name:
-            label = name.strip().title()
+        # קביעת תווית
+        if name.startswith("activity_name_"):
+            label = name.replace("activity_name_", "").strip().title()
+        elif name.startswith("intensity_"):
+            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
+        elif name.startswith("duration_group_"):
+            label = f"Activities lasting {name.replace('duration_group_', '').strip()} minutes"
+        elif name.startswith("activity_duration_combo_"):
+            label = name.replace("activity_duration_combo_", "").replace("_", " ").title()
         else:
-            label = full_name.strip().title()
+            label = name.capitalize()
 
-        if abs(effect) < 0.01:
+        if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no impact on {mood_field_lower}\n\n"
             neutral_insights.append(line)
         elif effect > 0:
