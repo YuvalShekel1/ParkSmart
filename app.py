@@ -737,7 +737,7 @@ def analyze_activity_patterns(data, mood_field):
 
         df = pd.DataFrame(matched_data)
         df = df.fillna(0)
-        x = df.drop(columns=["mood_after"])  
+        X = df.drop(columns=["mood_after"])  
         y = df["mood_after"]
         model = LinearRegression()
         model.fit(X, y)
