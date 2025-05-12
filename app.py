@@ -687,40 +687,30 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-    if not data or "activities" not in data or "feelings" not in data:
+       if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
-    try:
+       try:
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
                 name = item["activityName"]
                 if not name or len(name) < 2:
                     continue
-                duration = item["duration"]
-                if duration < 30:
-                    duration_group = "<30"
-                elif 30 <= duration <= 60:
-                    duration_group = "30–60"
-                else:
-                    duration_group = ">60"
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
-                    "duration": duration,
-                    "intensity": item["intensity"],
-                    "duration_group": duration_group,
-                    "activity_duration_combo": f"{name} ({duration_group})"
+                    "duration": item["duration"],
+                    "intensity": item["intensity"]
                 })
 
-        mood_data = [
-            {
-                "date": pd.to_datetime(item["date"]),
-                "severity": item["severity"]
-            }
-            for item in data["feelings"]
-            if "date" in item and item.get("type") == mood_field and "severity" in item
-        ]
+        mood_data = []
+        for item in data["feelings"]:
+            if "date" in item and item.get("type") == mood_field and "severity" in item:
+                mood_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "severity": item["severity"]
+                })
 
         if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
@@ -738,8 +728,6 @@ def analyze_activity_patterns(data, mood_field):
                     "activity_name": act["activity_name"],
                     "duration": act["duration"],
                     "intensity": act["intensity"],
-                    "duration_group": act["duration_group"],
-                    "activity_duration_combo": act["activity_duration_combo"],
                     "mood_after": avg_mood
                 })
 
@@ -747,22 +735,12 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-
-        # סינון לפי תכונות שמופיעות לפחות פעמיים
-        for column in ["activity_name", "intensity", "duration_group", "activity_duration_combo"]:
-            counts = df[column].value_counts()
-            allowed_values = counts[counts >= 2].index.tolist()
-            df = df[df[column].isin(allowed_values)]
-
-        if df.empty:
-            return "Not enough repeated activity patterns to analyze."
-
-        X = df[["activity_name", "intensity", "duration_group", "activity_duration_combo"]]
+        X = df[["activity_name", "duration", "intensity"]]
         y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), X.columns.tolist())
-        ])
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+        ], remainder='passthrough')
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -772,15 +750,11 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({
-                "feature": name.split("__")[-1],
-                "effect": round(coef, 2)
-            })
+            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
-    except Exception as e:
+       except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
-
 
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -917,20 +891,17 @@ def activity_analysis_summary(mood_field):
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        # קביעת תווית
+        # קביעת התווית להצגה
         if name.startswith("activity_name_"):
             label = name.replace("activity_name_", "").strip().title()
         elif name.startswith("intensity_"):
             label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
-        elif name.startswith("duration_group_"):
-            label = f"Activities lasting {name.replace('duration_group_', '').strip()} minutes"
-        elif name.startswith("activity_duration_combo_"):
-            label = name.replace("activity_duration_combo_", "").replace("_", " ").title()
         else:
-            label = name.capitalize()
+            label = name.capitalize() + " activity"
 
+        # קביעת כיוון ותו
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no impact on {mood_field_lower}\n\n"
+            line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
         elif effect > 0:
             line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
@@ -939,6 +910,7 @@ def activity_analysis_summary(mood_field):
             line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
 
+    # שילוב לפי סדר עדיפות
     detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
     return detailed_insights
 
@@ -1157,3 +1129,4 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.launch(server_name='0.0.0.0', server_port=port)
+אני רוצה להוסיף גם שיחפש תובנות של משך זמן פעילות אם זה משפיע - אם זה נגיד מתחת ל30 דק, בין 30-60 וכו
