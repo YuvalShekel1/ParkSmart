@@ -694,36 +694,23 @@ def analyze_activity_patterns(data, mood_field):
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
-                name = item["activityName"].strip()
-                intensity = item["intensity"].strip()
-                duration = item["duration"]
-
+                name = item["activityName"]
                 if not name or len(name) < 2:
                     continue
-
-                # קטגוריית משך: מתחת ל־30, בין 30 ל־60, מעל 60
-                if duration < 30:
-                    duration_cat = "<30"
-                elif 30 <= duration <= 60:
-                    duration_cat = "30–60"
-                else:
-                    duration_cat = ">60"
-
-                label = f"{name} ({intensity}, {duration_cat})"
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "activity_label": label,
-                    "mood_after": None
+                    "activity_name": name,
+                    "duration": item["duration"],
+                    "intensity": item["intensity"]
                 })
 
-        mood_data = [
-            {
-                "date": pd.to_datetime(item["date"]),
-                "severity": item["severity"]
-            }
-            for item in data["feelings"]
-            if "date" in item and item.get("type") == mood_field and "severity" in item
-        ]
+        mood_data = []
+        for item in data["feelings"]:
+            if "date" in item and item.get("type") == mood_field and "severity" in item:
+                mood_data.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "severity": item["severity"]
+                })
 
         if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
@@ -738,7 +725,9 @@ def analyze_activity_patterns(data, mood_field):
             if not relevant_moods.empty:
                 avg_mood = relevant_moods["severity"].mean()
                 matched_data.append({
-                    "activity_label": act["activity_label"],
+                    "activity_name": act["activity_name"],
+                    "duration": act["duration"],
+                    "intensity": act["intensity"],
                     "mood_after": avg_mood
                 })
 
@@ -746,12 +735,25 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-        X = df[["activity_label"]]
+
+        def classify_duration(minutes):
+            if minutes < 30:
+                return "<30"
+            elif 30 <= minutes <= 60:
+                return "30–60"
+            else:
+                return ">60"
+
+        df["duration_range"] = df["duration"].apply(classify_duration)
+        df["combined"] = df["activity_name"] + "__" + df["duration_range"]
+        df["combined2"] = df["activity_name"] + "__" + df["intensity"]
+
+        X = df[["activity_name", "combined", "combined2"]]
         y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_label"])
-        ], remainder='passthrough')
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "combined", "combined2"])
+        ], remainder='drop')
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -761,13 +763,11 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
+            result.append({"feature": name.split("__")[-1], "full": name, "effect": round(coef, 2)})
 
         return result
-
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
-
 
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -901,24 +901,29 @@ def activity_analysis_summary(mood_field):
 
     for item in advanced_analysis:
         name = item.get("feature", "")
+        full_name = item.get("full", "")
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        # קביעת תווית
-        if name.startswith("activity_name_"):
-            label = name.replace("activity_name_", "").strip().title()
-        elif name.startswith("intensity_"):
-            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
-        elif name.startswith("duration_group_"):
-            label = f"Activities lasting {name.replace('duration_group_', '').strip()} minutes"
-        elif name.startswith("activity_duration_combo_"):
-            label = name.replace("activity_duration_combo_", "").replace("_", " ").title()
+        if "combined2" in full_name:
+            parts = full_name.split("__")
+            if len(parts) == 3:
+                label = f"{parts[1].strip().title()} ({parts[2].strip().capitalize()} intensity)"
+            else:
+                label = full_name
+        elif "combined" in full_name:
+            parts = full_name.split("__")
+            if len(parts) == 3:
+                label = f"{parts[1].strip().title()} ({parts[2]})"
+            else:
+                label = full_name
+        elif "activity_name" in full_name:
+            label = name.strip().title()
         else:
-            label = name.capitalize()
+            label = full_name.strip().title()
 
-        # סינון רעשים
-        if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
+        if abs(effect) < 0.01:
+            line = f"⚫ **{label}**: no impact on {mood_field_lower}\n\n"
             neutral_insights.append(line)
         elif effect > 0:
             line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
@@ -929,8 +934,6 @@ def activity_analysis_summary(mood_field):
 
     detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
     return detailed_insights
-
-
 
 
 def medication_analysis_summary(mood_field):
