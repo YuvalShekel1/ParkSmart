@@ -897,7 +897,7 @@ def activity_analysis_summary(mood_field):
         elif name.startswith("intensity_"):
             label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
         else:
-            label = name.capitalize() + "activity"
+            label = name.capitalize() + " activity"
 
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
