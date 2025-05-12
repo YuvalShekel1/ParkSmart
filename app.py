@@ -736,24 +736,20 @@ def analyze_activity_patterns(data, mood_field):
 
         df = pd.DataFrame(matched_data)
 
-        def classify_duration(minutes):
-            if minutes < 30:
-                return "<30"
-            elif 30 <= minutes <= 60:
-                return "30–60"
-            else:
-                return ">60"
+        # סנן החוצה קבוצות קטנות מדי (פחות מ-2 מופעים)
+        df_counts = df.groupby(["activity_name"]).filter(lambda x: len(x) >= 2)
+        df_duration = df.groupby(pd.cut(df["duration"], bins=[0, 30, 60, 1000])).filter(lambda x: len(x) >= 2)
+        df_intensity = df.groupby(["intensity"]).filter(lambda x: len(x) >= 2)
 
-        df["duration_range"] = df["duration"].apply(classify_duration)
-        df["combined"] = df["activity_name"] + "__" + df["duration_range"]
-        df["combined2"] = df["activity_name"] + "__" + df["intensity"]
+        if df_counts.empty:
+            return "Not enough frequent activities to analyze."
 
-        X = df[["activity_name", "combined", "combined2"]]
-        y = df["mood_after"]
+        X = df_counts[["activity_name", "duration", "intensity"]]
+        y = df_counts["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "combined", "combined2"])
-        ], remainder='drop')
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+        ], remainder='passthrough')
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -763,7 +759,7 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({"feature": name.split("__")[-1], "full": name, "effect": round(coef, 2)})
+            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
     except Exception as e:
