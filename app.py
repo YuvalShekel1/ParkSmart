@@ -884,9 +884,27 @@ def activity_analysis_summary(mood_field):
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
-       # if abs(effect) >= 0.1:
+
+        if abs(effect) < 0.05:
+            continue
+
         direction = "increases" if effect > 0 else "decreases"
-        detailed_insights += f"- {name}: {direction} {mood_field} by {abs(effect):.2f}\n"
+        effect_str = f"{abs(effect):.2f}"
+
+        # Activity name
+        if name.startswith("activity_name_"):
+            activity = name.replace("activity_name_", "").strip().title()
+            detailed_insights += f"{activity}: {direction} {mood_field} by {effect_str}\n"
+
+        # Intensity
+        elif name.startswith("intensity_"):
+            intensity = name.replace("intensity_", "").strip().capitalize()
+            detailed_insights += f"{intensity} intensity: {direction} {mood_field} by {effect_str}\n"
+
+        # Duration
+        elif name == "duration":
+            detailed_insights += f"Duration: {direction} {mood_field} by {effect_str}\n"
+
 
     return detailed_insights
 
