@@ -688,7 +688,7 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
     if not data or "activities" not in data or "feelings" not in data:
-        return "אין מספיק נתונים לניתוח דפוסי פעילויות."
+        return "Not enough data for activity pattern analysis."
 
     try:
         activity_data = []
@@ -700,7 +700,7 @@ def analyze_activity_patterns(data, mood_field):
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
-                    "duration": float(item["duration"]),
+                    "duration": item["duration"],
                     "intensity": item["intensity"]
                 })
 
@@ -713,7 +713,7 @@ def analyze_activity_patterns(data, mood_field):
                 })
 
         if len(activity_data) < 3 or len(mood_data) < 3:
-            return "אין מספיק נקודות נתונים לניתוח פעילויות."
+            return "Not enough data points for activity analysis."
 
         activity_df = pd.DataFrame(activity_data)
         mood_df = pd.DataFrame(mood_data)
@@ -732,20 +732,20 @@ def analyze_activity_patterns(data, mood_field):
                 })
 
         if len(matched_data) < 3:
-            return "אין מספיק נתונים מותאמים של פעילויות-מצב רוח לניתוח."
-
+            return "Not enough matched activity-mood data for analysis."
+            
         # ספירת מספר התצפיות לכל סוג פעילות
         activity_counts = {}
         for item in matched_data:
             act_name = item["activity_name"]
             activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
-        
+            
         # סינון רק פעילויות עם לפחות 2 תצפיות
         filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
         
         if len(filtered_data) < 3:
-            return "אין מספיק נתונים מותאמים (לפחות 2 דגימות לכל סוג פעילות) לניתוח אמין."
-        
+            return "Not enough matched data after filtering (minimum 2 samples per activity type)."
+
         df = pd.DataFrame(filtered_data)
         X = df[["activity_name", "duration", "intensity"]]
         y = df["mood_after"]
@@ -761,18 +761,29 @@ def analyze_activity_patterns(data, mood_field):
         feature_names = model.named_steps["columntransformer"].get_feature_names_out()
 
         result = []
-        for name, coef in zip(feature_names, coefs):
-            # אין צורך לשמור את מספר הדגימות
+        for i, (name, coef) in enumerate(zip(feature_names, coefs)):
+            feature_type = ""
+            feature_value = ""
+            
             if "activity_name" in name:
-                result.append({"feature": name, "effect": round(coef, 2)})
+                feature_type = "activity_name"
+                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
             elif "intensity" in name:
-                result.append({"feature": name, "effect": round(coef, 2)})
-            else:  # זה המשך פעילות - duration
-                result.append({"feature": "duration", "effect": round(coef, 2)})
+                feature_type = "intensity"
+                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
+            else:
+                feature_type = "duration"
+                feature_value = ""
+                
+            result.append({
+                "feature_type": feature_type,
+                "feature_value": feature_value,
+                "effect": round(coef, 2)
+            })
 
         return result
     except Exception as e:
-        return f"שגיאה בניתוח דפוסי הפעילויות: {str(e)}"
+        return f"Error in activity pattern analysis: {str(e)}"
 
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -905,17 +916,18 @@ def activity_analysis_summary(mood_field):
     neutral_insights = []
 
     for item in advanced_analysis:
-        name = item.get("feature", "")
+        feature_type = item.get("feature_type", "")
+        feature_value = item.get("feature_value", "")
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
         # קביעת התווית להצגה
-        if name.startswith("activity_name_"):
-            label = name.replace("activity_name_", "").strip().title()
-        elif name.startswith("intensity_"):
-            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
-        else:
-            label = name.capitalize() + " activity"
+        if feature_type == "activity_name":
+            label = feature_value.strip().title()
+        elif feature_type == "intensity":
+            label = feature_value.strip().capitalize() + " intensity activity"
+        else:  # duration
+            label = "Duration activity"
 
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
