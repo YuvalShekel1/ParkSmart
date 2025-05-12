@@ -880,7 +880,7 @@ def activity_analysis_summary(mood_field):
     if not advanced_analysis:
         return "No patterns found."
 
-    detailed_insights = ""
+    detailed_insights = "🏃 **Activity impact on {mood_field}**:"\n\n"
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
@@ -894,16 +894,16 @@ def activity_analysis_summary(mood_field):
         # Activity name
         if name.startswith("activity_name_"):
             activity = name.replace("activity_name_", "").strip().title()
-            detailed_insights += f"{activity}: {direction} {mood_field} by {effect_str}\n"
+            detailed_insights += f"**{activity}:** {direction} {mood_field} by {effect_str} on average\n\n"
 
         # Intensity
         elif name.startswith("intensity_"):
             intensity = name.replace("intensity_", "").strip().capitalize()
-            detailed_insights += f"{intensity} intensity: {direction} {mood_field} by {effect_str}\n"
+            detailed_insights += f"**{intensity} intensity:** {direction} {mood_field} by {effect_str} on average\n\n"
 
         # Duration
         elif name == "duration":
-            detailed_insights += f"Duration: {direction} {mood_field} by {effect_str}\n"
+            detailed_insights += f"**Duration:** {direction} {mood_field} by {effect_str} on average\n\n"
 
 
     return detailed_insights
