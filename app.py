@@ -895,6 +895,339 @@ def analyze_medication_patterns(data, mood_field):
     except Exception as e:
         return f"Error in medication pattern analysis: {str(e)}"
 
+def extend_activity_analysis_with_patterns():
+    """
+    פונקציה זו מרחיבה את ניתוח הפעילות הקיים בלי לשנות את הקוד המקורי.
+    מוסיפה את הניתוח המפורט של דפוסי פעילות באמצעות "monkey patching".
+    
+    שימוש:
+    פשוט הוסף שורה אחת בסוף הקוד הקיים שלך:
+    extend_activity_analysis_with_patterns()
+    """
+    # שמירת הפונקציה המקורית
+    original_activity_analysis = activity_analysis_summary
+    
+    # הגדרת הפונקציה החדשה לניתוח דפוסי פעילות מפורטים
+    def analyze_detailed_activity_patterns(data, mood_field):
+        """
+        מנתח בצורה מפורטת דפוסים בפעילויות ספורט ואת הקשר שלהם למצב הרוח
+        עם דגש על הקשר בין סוג הפעילות, משך הזמן והעצימות
+        מציג תובנות בפורמט אחיד עם סימון צבעוני (🟢/🔴/⚫)
+        """
+        if not data or "activities" not in data or "symptoms" not in data:
+            return ""  # מחזיר מחרוזת ריקה אם אין מספיק נתונים
+
+        try:
+            # חילוץ נתוני פעילות
+            activity_data = []
+            for item in data.get("activities", []):
+                if "date" in item and "activityName" in item:
+                    activity_name = item.get("activityName", "")
+                    
+                    # וידוא שהשם תקין
+                    if not activity_name or len(activity_name) < 2:
+                        continue
+                    
+                    # המרת משך לערך מספרי
+                    try:
+                        duration = float(item.get("duration", 0))
+                    except (ValueError, TypeError):
+                        duration = 0
+                    
+                    if duration <= 0:
+                        continue
+                    
+                    # בדיקת עצימות
+                    intensity = item.get("intensity", "Medium")
+                    
+                    activity_data.append({
+                        "date": pd.to_datetime(item["date"]),
+                        "activity_name": activity_name,
+                        "duration": duration,
+                        "intensity": intensity
+                    })
+
+            # חילוץ נתוני מצב רוח
+            mood_data = []
+            for item in data.get("symptoms", []):
+                if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
+                    try:
+                        mood_value = float(item["severity"])
+                        mood_data.append({
+                            "date": pd.to_datetime(item["date"]),
+                            "severity": mood_value
+                        })
+                    except (ValueError, TypeError):
+                        continue
+            
+            # בדיקה שיש מספיק נתונים
+            if len(activity_data) < 5 or len(mood_data) < 5:
+                return ""  # מחזיר מחרוזת ריקה אם אין מספיק נתונים
+                
+            # המרה לDataFrames
+            activity_df = pd.DataFrame(activity_data)
+            mood_df = pd.DataFrame(mood_data)
+            
+            # הוספת קטגוריות משך זמן
+            activity_df["duration_category"] = pd.cut(
+                activity_df["duration"],
+                bins=[0, 30, 60, float('inf')],
+                labels=["short", "medium", "long"]
+            )
+            
+            # התאמת פעילויות למצב רוח
+            matched_data = []
+            
+            for _, act in activity_df.iterrows():
+                act_date = act["date"]
+                act_day = act_date.date()
+                
+                # חיפוש נתוני מצב רוח באותו יום אחרי הפעילות
+                same_day_after = mood_df[(mood_df["date"].dt.date == act_day) & 
+                                       (mood_df["date"] >= act_date)]
+                
+                # אם אין מצב רוח אחרי הפעילות, בדוק כל מצב רוח באותו יום
+                if same_day_after.empty:
+                    same_day_any = mood_df[mood_df["date"].dt.date == act_day]
+                    if not same_day_any.empty:
+                        avg_mood = same_day_any["severity"].mean()
+                        matched_data.append({
+                            "activity_name": act["activity_name"],
+                            "duration": act["duration"],
+                            "duration_category": act["duration_category"],
+                            "intensity": act["intensity"],
+                            "date": act_date,
+                            "mood_after": avg_mood
+                        })
+                else:
+                    avg_mood = same_day_after["severity"].mean()
+                    matched_data.append({
+                        "activity_name": act["activity_name"],
+                        "duration": act["duration"],
+                        "duration_category": act["duration_category"],
+                        "intensity": act["intensity"],
+                        "date": act_date,
+                        "mood_after": avg_mood
+                    })
+            
+            if len(matched_data) < 5:
+                return ""  # מחזיר מחרוזת ריקה אם אין מספיק נתונים מותאמים
+                
+            matched_df = pd.DataFrame(matched_data)
+            
+            # ממוצע מצב רוח כללי (לשימוש כבסיס)
+            overall_avg_mood = matched_df["mood_after"].mean()
+            
+            # ------ תובנות מפורטות בפורמט אחיד ------
+            insights = f"## דפוסים מפורטים בפעילויות גופניות\n\n"
+            
+            # ===== 1. תובנות: השפעות של משך זמן בפעילויות שונות =====
+            duration_insights = []
+            
+            # המרה בין קטגוריות משך זמן לתיאור בעברית
+            duration_labels = {
+                "short": "פחות מ-30 דקות",
+                "medium": "בין 30-60 דקות",
+                "long": "מעל 60 דקות"
+            }
+            
+            # ניתוח לכל פעילות
+            for activity in matched_df["activity_name"].unique():
+                activity_data = matched_df[matched_df["activity_name"] == activity]
+                
+                # נמשיך רק אם יש מספיק נתונים
+                if len(activity_data) >= 3:
+                    
+                    # בדיקת השפעות משך זמן שונה
+                    for duration_cat in ["short", "medium", "long"]:
+                        duration_data = activity_data[activity_data["duration_category"] == duration_cat]
+                        
+                        # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
+                        if len(duration_data) >= 2:
+                            avg_mood = duration_data["mood_after"].mean()
+                            effect = avg_mood - overall_avg_mood
+                            
+                            # בדוק אם ההשפעה משמעותית
+                            if abs(effect) >= 0.1:
+                                duration_insights.append({
+                                    "activity": activity,
+                                    "duration_cat": duration_cat,
+                                    "duration_desc": duration_labels[duration_cat],
+                                    "effect": effect,
+                                    "avg_mood": avg_mood,
+                                    "count": len(duration_data)
+                                })
+            
+            # ===== 2. תובנות: השפעות של עצימות בפעילויות שונות =====
+            intensity_insights = []
+            
+            # ניתוח לכל פעילות
+            for activity in matched_df["activity_name"].unique():
+                activity_data = matched_df[matched_df["activity_name"] == activity]
+                
+                # נמשיך רק אם יש מספיק נתונים
+                if len(activity_data) >= 3:
+                    
+                    # בדיקת השפעות עצימות שונה
+                    for intensity in activity_data["intensity"].unique():
+                        intensity_data = activity_data[activity_data["intensity"] == intensity]
+                        
+                        # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
+                        if len(intensity_data) >= 2:
+                            avg_mood = intensity_data["mood_after"].mean()
+                            effect = avg_mood - overall_avg_mood
+                            
+                            # בדוק אם ההשפעה משמעותית
+                            if abs(effect) >= 0.1:
+                                intensity_insights.append({
+                                    "activity": activity,
+                                    "intensity": intensity,
+                                    "effect": effect,
+                                    "avg_mood": avg_mood,
+                                    "count": len(intensity_data)
+                                })
+            
+            # ===== 3. תובנות: דפוסים מורכבים (משך + עצימות) =====
+            complex_insights = []
+            
+            for activity in matched_df["activity_name"].unique():
+                activity_data = matched_df[matched_df["activity_name"] == activity]
+                
+                # נמשיך רק אם יש מספיק נתונים
+                if len(activity_data) >= 4:  # נדרשים יותר נתונים לדפוסים מורכבים
+                    
+                    # בדיקת שילובים של משך ועצימות
+                    for duration_cat in ["short", "medium", "long"]:
+                        for intensity in activity_data["intensity"].unique():
+                            combo_data = activity_data[
+                                (activity_data["duration_category"] == duration_cat) & 
+                                (activity_data["intensity"] == intensity)
+                            ]
+                            
+                            # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
+                            if len(combo_data) >= 2:
+                                avg_mood = combo_data["mood_after"].mean()
+                                effect = avg_mood - overall_avg_mood
+                                
+                                # בדוק אם ההשפעה משמעותית
+                                if abs(effect) >= 0.1:
+                                    complex_insights.append({
+                                        "activity": activity,
+                                        "duration_cat": duration_cat,
+                                        "duration_desc": duration_labels[duration_cat],
+                                        "intensity": intensity,
+                                        "effect": effect,
+                                        "avg_mood": avg_mood,
+                                        "count": len(combo_data)
+                                    })
+            
+            # ===== 4. מיון כל התובנות לפי גודל ההשפעה =====
+            
+            # מיון תובנות לפי גודל אפקט (מוחלט)
+            duration_insights.sort(key=lambda x: abs(x["effect"]), reverse=True)
+            intensity_insights.sort(key=lambda x: abs(x["effect"]), reverse=True)
+            complex_insights.sort(key=lambda x: abs(x["effect"]), reverse=True)
+            
+            # בדיקה אם יש תובנות כלשהן
+            has_insights = bool(duration_insights or intensity_insights or complex_insights)
+            
+            # אם אין תובנות בכלל, החזר מחרוזת ריקה
+            if not has_insights:
+                return ""
+            
+            # ===== 5. יצירת טקסט התובנות בפורמט אחיד (עם צבעים) =====
+            
+            # הוספת תובנות משך זמן
+            if duration_insights:
+                insights += "### השפעת משך זמן הפעילות\n\n"
+                
+                for insight in duration_insights:
+                    # קביעת צבע לפי כיוון ההשפעה
+                    if abs(insight["effect"]) < 0.05:
+                        color = "⚫"  # שחור לאפקט נייטרלי
+                    elif insight["effect"] > 0:
+                        color = "🟢"  # ירוק לאפקט חיובי
+                    else:
+                        color = "🔴"  # אדום לאפקט שלילי
+                    
+                    # תיאור ההשפעה
+                    direction = "מעלה" if insight["effect"] > 0 else "מורידה"
+                    effect_size = abs(round(insight["effect"], 1))
+                    
+                    insights += f"{color} **{insight['activity']} {insight['duration_desc']}** {direction} את מצב הרוח ב-{effect_size} נקודות"
+                    insights += f" (ממוצע: {round(insight['avg_mood'], 1)}/5, {insight['count']} פעמים)\n\n"
+            
+            # הוספת תובנות עצימות
+            if intensity_insights:
+                insights += "### השפעת עצימות הפעילות\n\n"
+                
+                for insight in intensity_insights:
+                    # קביעת צבע לפי כיוון ההשפעה
+                    if abs(insight["effect"]) < 0.05:
+                        color = "⚫"  # שחור לאפקט נייטרלי
+                    elif insight["effect"] > 0:
+                        color = "🟢"  # ירוק לאפקט חיובי
+                    else:
+                        color = "🔴"  # אדום לאפקט שלילי
+                    
+                    # תיאור ההשפעה
+                    direction = "מעלה" if insight["effect"] > 0 else "מורידה"
+                    effect_size = abs(round(insight["effect"], 1))
+                    
+                    insights += f"{color} **{insight['activity']} בעצימות {insight['intensity']}** {direction} את מצב הרוח ב-{effect_size} נקודות"
+                    insights += f" (ממוצע: {round(insight['avg_mood'], 1)}/5, {insight['count']} פעמים)\n\n"
+            
+            # הוספת תובנות מורכבות
+            if complex_insights:
+                insights += "### שילובים אופטימליים של משך ועצימות\n\n"
+                
+                for insight in complex_insights:
+                    # קביעת צבע לפי כיוון ההשפעה
+                    if abs(insight["effect"]) < 0.05:
+                        color = "⚫"  # שחור לאפקט נייטרלי
+                    elif insight["effect"] > 0:
+                        color = "🟢"  # ירוק לאפקט חיובי
+                    else:
+                        color = "🔴"  # אדום לאפקט שלילי
+                    
+                    # תיאור ההשפעה
+                    direction = "מעלה" if insight["effect"] > 0 else "מורידה"
+                    effect_size = abs(round(insight["effect"], 1))
+                    
+                    insights += f"{color} **{insight['activity']} {insight['duration_desc']} בעצימות {insight['intensity']}** {direction} את מצב הרוח ב-{effect_size} נקודות"
+                    insights += f" (ממוצע: {round(insight['avg_mood'], 1)}/5, {insight['count']} פעמים)\n\n"
+            
+            return insights
+            
+        except Exception as e:
+            return ""  # במקרה של שגיאה, החזר מחרוזת ריקה
+    
+    # פונקציה להרחבת/שכתוב פונקציית הניתוח
+    def enhanced_activity_analysis(mood_field):
+        """
+        פונקציה שמשלבת את הניתוח המקורי עם ניתוח הדפוסים המפורטים
+        """
+        # קבל את התובנות הרגילות מהפונקציה המקורית
+        basic_insights = original_activity_analysis(mood_field)
+        
+        # נסה להוסיף את התובנות המפורטות
+        try:
+            detailed_insights = analyze_detailed_activity_patterns(translated_data_global, mood_field)
+            if detailed_insights:
+                return basic_insights + "\n\n" + detailed_insights
+            else:
+                return basic_insights
+        except:
+            # אם יש שגיאה כלשהי בניתוח המפורט, חזור למקורי
+            return basic_insights
+    
+    # החלפת הפונקציה המקורית בפונקציה המשופרת
+    # זה נקרא "monkey patching" - שינוי פונקציה קיימת במהלך הריצה
+    global activity_analysis_summary
+    activity_analysis_summary = enhanced_activity_analysis
+
+# לשימוש בקוד הקיים שלך, פשוט הוסף שורה אחת בסוף:
+# extend_activity_analysis_with_patterns()
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
@@ -1153,6 +1486,7 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
     medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
     symptom_button.click(fn=symptom_analysis_summary, inputs=[mood_selector], outputs=[symptom_output])
     nutrition_button.click(fn=nutrition_analysis_summary, inputs=[mood_selector], outputs=[nutrition_output])
+extend_activity_analysis_with_patterns()
 
 # הפעלת האפליקציה
 if __name__ == "__main__":
