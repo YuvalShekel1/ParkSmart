@@ -871,42 +871,48 @@ def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
 
-
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
     if isinstance(advanced_analysis, str):
-        return  advanced_analysis
+        return advanced_analysis
 
     if not advanced_analysis:
         return "No patterns found."
 
-    detailed_insights = "🏃 **Activity impact on {mood_field}**:\n\n"
+    mood_field_lower = mood_field.lower()
+    detailed_insights = f"## 🏃 **Activity impact on {mood_field}**\n\n"
+
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
 
         if abs(effect) < 0.05:
+            dot = "⚫"
+            direction = "no significant impact"
+            label = name.replace("activity_name_", "").replace("intensity_", "").title()
+            detailed_insights += f"{dot} **{label}**: {direction}\n\n"
             continue
 
+        dot = "🟢" if effect > 0 else "🔴"
         direction = "increases" if effect > 0 else "decreases"
         effect_str = f"{abs(effect):.2f}"
 
         # Activity name
         if name.startswith("activity_name_"):
             activity = name.replace("activity_name_", "").strip().title()
-            detailed_insights += f"**{activity}:** {direction} {mood_field} by {effect_str} on average\n\n"
+            detailed_insights += f"{dot} **{activity}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
 
         # Intensity
         elif name.startswith("intensity_"):
             intensity = name.replace("intensity_", "").strip().capitalize()
-            detailed_insights += f"**{intensity} intensity:** {direction} {mood_field} by {effect_str} on average\n\n"
+            detailed_insights += f"{dot} **{intensity} intensity**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
 
         # Duration
         elif name == "duration":
-            detailed_insights += f"**Duration:** {direction} {mood_field} by {effect_str} on average\n\n"
-
+            detailed_insights += f"{dot} **Duration**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
 
     return detailed_insights
+
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
