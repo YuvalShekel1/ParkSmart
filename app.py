@@ -880,37 +880,38 @@ def activity_analysis_summary(mood_field):
         return "No patterns found."
 
     mood_field_lower = mood_field.lower()
-    detailed_insights = f"## 🏃 **Activity impact on {mood_field}**\n\n"
+    header = f"## 🏃 **Activity impact on {mood_field}**\n\n"
+
+    green_insights = []
+    red_insights = []
+    neutral_insights = []
 
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
-
-        if abs(effect) < 0.05:
-            dot = "⚫"
-            direction = "no significant impact"
-            label = name.replace("activity_name_", "").replace("intensity_", "").title()
-            detailed_insights += f"{dot} **{label}**: {direction}\n\n"
-            continue
-
-        dot = "🟢" if effect > 0 else "🔴"
-        direction = "increases" if effect > 0 else "decreases"
         effect_str = f"{abs(effect):.2f}"
 
-        # Activity name
+        # קביעת התווית להצגה
         if name.startswith("activity_name_"):
-            activity = name.replace("activity_name_", "").strip().title()
-            detailed_insights += f"{dot} **{activity}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-
-        # Intensity
+            label = name.replace("activity_name_", "").strip().title()
         elif name.startswith("intensity_"):
-            intensity = name.replace("intensity_", "").strip().capitalize()
-            detailed_insights += f"{dot} **{intensity} intensity**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
+            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
+        else:
+            label = name.capitalize() + "activity"
 
-        # Duration
-        elif name == "duration":
-            detailed_insights += f"{dot} **Duration**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
+        # קביעת כיוון ותו
+        if abs(effect) < 0.05:
+            line = f"⚫ **{label}**: no significant impact\n\n"
+            neutral_insights.append(line)
+        elif effect > 0:
+            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+            green_insights.append(line)
+        else:
+            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+            red_insights.append(line)
 
+    # שילוב לפי סדר עדיפות
+    detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
     return detailed_insights
 
 
