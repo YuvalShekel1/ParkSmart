@@ -887,7 +887,7 @@ def analyze_medication_patterns(data, mood_field):
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
-        return "אנא העלה ועבד נתונים תחילה."
+        return "Please upload and process data first."
 
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
@@ -895,58 +895,41 @@ def activity_analysis_summary(mood_field):
         return advanced_analysis
 
     if not advanced_analysis:
-        return "לא נמצאו דפוסים."
+        return "No patterns found."
 
     mood_field_lower = mood_field.lower()
-    header = f"## 🏃 **השפעת פעילויות על {mood_field}**\n\n"
+    header = f"## 🏃 **Activity impact on {mood_field}**\n\n"
 
     green_insights = []
     red_insights = []
     neutral_insights = []
-    duration_insight = None
 
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        # טיפול במקדם משך הפעילות בנפרד
-        if name == "duration":
-            # חזרה לסף מובהקות של 0.05
-            if abs(effect) < 0.05:
-                duration_insight = f"⚫ **משך פעילות**: אין השפעה משמעותית על {mood_field_lower}\n\n"
-            elif effect > 0:
-                duration_insight = f"🟢 **משך פעילות ארוך יותר**: מעלה את {mood_field_lower} ב-{effect_str} לכל דקה בממוצע\n\n"
-            else:
-                duration_insight = f"🔴 **משך פעילות ארוך יותר**: מוריד את {mood_field_lower} ב-{effect_str} לכל דקה בממוצע\n\n"
-            continue
-
         # קביעת התווית להצגה
-        if "activity_name" in name:
-            label = name.split("__")[-1].strip().title()
-        elif "intensity" in name:
-            intensity = name.split("__")[-1].strip().capitalize()
-            label = f"עצימות {intensity}"
+        if name.startswith("activity_name_"):
+            label = name.replace("activity_name_", "").strip().title()
+        elif name.startswith("intensity_"):
+            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
         else:
-            label = name.capitalize()
+            label = name.capitalize() + " activity"
 
-        # חזרה לסף מובהקות של 0.05
+        # קביעת כיוון ותו
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: אין השפעה משמעותית\n\n"
+            line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
         elif effect > 0:
-            line = f"🟢 **{label}**: מעלה את {mood_field_lower} ב-{effect_str} בממוצע\n\n"
+            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
         else:
-            line = f"🔴 **{label}**: מוריד את {mood_field_lower} ב-{effect_str} בממוצע\n\n"
+            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
 
     # שילוב לפי סדר עדיפות
-    detailed_insights = header
-    if duration_insight:
-        detailed_insights += duration_insight
-    detailed_insights += "".join(green_insights + red_insights + neutral_insights)
-    
+    detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
     return detailed_insights
 
 def medication_analysis_summary(mood_field):
