@@ -697,21 +697,20 @@ def analyze_activity_patterns(data, mood_field):
                 name = item["activityName"]
                 if not name or len(name) < 2:
                     continue
-
                 duration = item["duration"]
                 if duration < 30:
-                    duration_cat = "<30 min"
+                    duration_group = "<30"
                 elif 30 <= duration <= 60:
-                    duration_cat = "30–60 min"
+                    duration_group = "30–60"
                 else:
-                    duration_cat = ">60 min"
-
+                    duration_group = ">60"
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
                     "duration": duration,
-                    "duration_category": duration_cat,
-                    "intensity": item["intensity"]
+                    "intensity": item["intensity"],
+                    "duration_group": duration_group,
+                    "activity_duration_combo": f"{name} ({duration_group})"
                 })
 
         mood_data = []
@@ -737,8 +736,9 @@ def analyze_activity_patterns(data, mood_field):
                 matched_data.append({
                     "activity_name": act["activity_name"],
                     "duration": act["duration"],
-                    "duration_category": act["duration_category"],
                     "intensity": act["intensity"],
+                    "duration_group": act["duration_group"],
+                    "activity_duration_combo": act["activity_duration_combo"],
                     "mood_after": avg_mood
                 })
 
@@ -746,12 +746,12 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-        X = df[["activity_name", "intensity", "duration_category"]]
+        X = df[["activity_name", "intensity", "duration_group", "activity_duration_combo"]]
         y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity", "duration_category"])
-        ], remainder='drop')
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity", "duration_group", "activity_duration_combo"])
+        ])
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -761,11 +761,15 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
+            result.append({
+                "feature": name.split("__")[-1],
+                "effect": round(coef, 2)
+            })
 
         return result
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
+
 
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -902,15 +906,19 @@ def activity_analysis_summary(mood_field):
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        # קביעת תווית להצגה
-        if name.startswith("<") or "–" in name or name.startswith(">"):
-            label = f"{name} activity duration"
-        elif name.lower() in ["low", "moderate", "high"]:
-            label = f"{name.capitalize()} intensity activity"
+        # קביעת תווית
+        if name.startswith("activity_name_"):
+            label = name.replace("activity_name_", "").strip().title()
+        elif name.startswith("intensity_"):
+            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
+        elif name.startswith("duration_group_"):
+            label = f"Activities lasting {name.replace('duration_group_', '').strip()} minutes"
+        elif name.startswith("activity_duration_combo_"):
+            label = name.replace("activity_duration_combo_", "").replace("_", " ").title()
         else:
-            label = name.replace("_", " ").title()
+            label = name.capitalize()
 
-        # סיווג לפי השפעה
+        # סינון רעשים
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
@@ -923,6 +931,7 @@ def activity_analysis_summary(mood_field):
 
     detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
     return detailed_insights
+
 
 
 
