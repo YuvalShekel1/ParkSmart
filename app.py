@@ -687,10 +687,10 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-       if not data or "activities" not in data or "feelings" not in data:
-        return "Not enough data for activity pattern analysis."
+    if not data or "activities" not in data or "feelings" not in data:
+        return "אין מספיק נתונים לניתוח דפוסי פעילויות."
 
-       try:
+    try:
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
@@ -700,7 +700,7 @@ def analyze_activity_patterns(data, mood_field):
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
-                    "duration": item["duration"],
+                    "duration": float(item["duration"]),
                     "intensity": item["intensity"]
                 })
 
@@ -713,7 +713,7 @@ def analyze_activity_patterns(data, mood_field):
                 })
 
         if len(activity_data) < 3 or len(mood_data) < 3:
-            return "Not enough data points for activity analysis."
+            return "אין מספיק נקודות נתונים לניתוח פעילויות."
 
         activity_df = pd.DataFrame(activity_data)
         mood_df = pd.DataFrame(mood_data)
@@ -732,9 +732,21 @@ def analyze_activity_patterns(data, mood_field):
                 })
 
         if len(matched_data) < 3:
-            return "Not enough matched activity-mood data for analysis."
+            return "אין מספיק נתונים מותאמים של פעילויות-מצב רוח לניתוח."
 
-        df = pd.DataFrame(matched_data)
+        # ספירת מספר התצפיות לכל סוג פעילות
+        activity_counts = {}
+        for item in matched_data:
+            act_name = item["activity_name"]
+            activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
+        
+        # סינון רק פעילויות עם לפחות 2 תצפיות
+        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
+        
+        if len(filtered_data) < 3:
+            return "אין מספיק נתונים מותאמים (לפחות 2 דגימות לכל סוג פעילות) לניתוח אמין."
+        
+        df = pd.DataFrame(filtered_data)
         X = df[["activity_name", "duration", "intensity"]]
         y = df["mood_after"]
 
@@ -750,11 +762,17 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
+            # אין צורך לשמור את מספר הדגימות
+            if "activity_name" in name:
+                result.append({"feature": name, "effect": round(coef, 2)})
+            elif "intensity" in name:
+                result.append({"feature": name, "effect": round(coef, 2)})
+            else:  # זה המשך פעילות - duration
+                result.append({"feature": "duration", "effect": round(coef, 2)})
 
         return result
-       except Exception as e:
-        return f"Error in activity pattern analysis: {str(e)}"
+    except Exception as e:
+        return f"שגיאה בניתוח דפוסי הפעילויות: {str(e)}"
 
 def analyze_medication_patterns(data, mood_field):
     if not data or "medications" not in data or "symptoms" not in data:
@@ -869,7 +887,7 @@ def analyze_medication_patterns(data, mood_field):
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
-        return "Please upload and process data first."
+        return "אנא העלה ועבד נתונים תחילה."
 
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
 
@@ -877,43 +895,59 @@ def activity_analysis_summary(mood_field):
         return advanced_analysis
 
     if not advanced_analysis:
-        return "No patterns found."
+        return "לא נמצאו דפוסים."
 
     mood_field_lower = mood_field.lower()
-    header = f"## 🏃 **Activity impact on {mood_field}**\n\n"
+    header = f"## 🏃 **השפעת פעילויות על {mood_field}**\n\n"
 
     green_insights = []
     red_insights = []
     neutral_insights = []
+    duration_insight = None
 
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        # קביעת התווית להצגה
-        if name.startswith("activity_name_"):
-            label = name.replace("activity_name_", "").strip().title()
-        elif name.startswith("intensity_"):
-            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
-        else:
-            label = name.capitalize() + " activity"
+        # טיפול במקדם משך הפעילות בנפרד
+        if name == "duration":
+            # חזרה לסף מובהקות של 0.05
+            if abs(effect) < 0.05:
+                duration_insight = f"⚫ **משך פעילות**: אין השפעה משמעותית על {mood_field_lower}\n\n"
+            elif effect > 0:
+                duration_insight = f"🟢 **משך פעילות ארוך יותר**: מעלה את {mood_field_lower} ב-{effect_str} לכל דקה בממוצע\n\n"
+            else:
+                duration_insight = f"🔴 **משך פעילות ארוך יותר**: מוריד את {mood_field_lower} ב-{effect_str} לכל דקה בממוצע\n\n"
+            continue
 
-        # קביעת כיוון ותו
+        # קביעת התווית להצגה
+        if "activity_name" in name:
+            label = name.split("__")[-1].strip().title()
+        elif "intensity" in name:
+            intensity = name.split("__")[-1].strip().capitalize()
+            label = f"עצימות {intensity}"
+        else:
+            label = name.capitalize()
+
+        # חזרה לסף מובהקות של 0.05
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
+            line = f"⚫ **{label}**: אין השפעה משמעותית\n\n"
             neutral_insights.append(line)
         elif effect > 0:
-            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+            line = f"🟢 **{label}**: מעלה את {mood_field_lower} ב-{effect_str} בממוצע\n\n"
             green_insights.append(line)
         else:
-            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+            line = f"🔴 **{label}**: מוריד את {mood_field_lower} ב-{effect_str} בממוצע\n\n"
             red_insights.append(line)
 
     # שילוב לפי סדר עדיפות
-    detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
+    detailed_insights = header
+    if duration_insight:
+        detailed_insights += duration_insight
+    detailed_insights += "".join(green_insights + red_insights + neutral_insights)
+    
     return detailed_insights
-
 
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
