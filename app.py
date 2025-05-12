@@ -687,20 +687,30 @@ def generate_symptom_insights(symptom_df, mood_df, mood_field):
 
 # פונקציות ניתוח מתקדמות
 def analyze_activity_patterns(data, mood_field):
-       if not data or "activities" not in data or "feelings" not in data:
+    if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
-       try:
+    try:
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
                 name = item["activityName"]
                 if not name or len(name) < 2:
                     continue
+
+                duration = item["duration"]
+                if duration < 30:
+                    duration_cat = "<30 min"
+                elif 30 <= duration <= 60:
+                    duration_cat = "30–60 min"
+                else:
+                    duration_cat = ">60 min"
+
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
-                    "duration": item["duration"],
+                    "duration": duration,
+                    "duration_category": duration_cat,
                     "intensity": item["intensity"]
                 })
 
@@ -727,6 +737,7 @@ def analyze_activity_patterns(data, mood_field):
                 matched_data.append({
                     "activity_name": act["activity_name"],
                     "duration": act["duration"],
+                    "duration_category": act["duration_category"],
                     "intensity": act["intensity"],
                     "mood_after": avg_mood
                 })
@@ -735,12 +746,12 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-        X = df[["activity_name", "duration", "intensity"]]
+        X = df[["activity_name", "intensity", "duration_category"]]
         y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity", "duration_category"])
+        ], remainder='drop')
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -753,7 +764,7 @@ def analyze_activity_patterns(data, mood_field):
             result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
-       except Exception as e:
+    except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
 
 def analyze_medication_patterns(data, mood_field):
@@ -872,8 +883,10 @@ def activity_analysis_summary(mood_field):
         return "Please upload and process data first."
 
     advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
+
     if isinstance(advanced_analysis, str):
         return advanced_analysis
+
     if not advanced_analysis:
         return "No patterns found."
 
@@ -884,19 +897,20 @@ def activity_analysis_summary(mood_field):
     red_insights = []
     neutral_insights = []
 
-    # ניתוח רגיל לפי מאפיינים
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
         effect_str = f"{abs(effect):.2f}"
 
-        if name.startswith("activity_name_"):
-            label = name.replace("activity_name_", "").strip().title()
-        elif name.startswith("intensity_"):
-            label = name.replace("intensity_", "").strip().capitalize() + " intensity activity"
+        # קביעת תווית להצגה
+        if name.startswith("<") or "–" in name or name.startswith(">"):
+            label = f"{name} activity duration"
+        elif name.lower() in ["low", "moderate", "high"]:
+            label = f"{name.capitalize()} intensity activity"
         else:
-            label = name.capitalize() + " activity"
+            label = name.replace("_", " ").title()
 
+        # סיווג לפי השפעה
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
@@ -908,69 +922,6 @@ def activity_analysis_summary(mood_field):
             red_insights.append(line)
 
     detailed_insights = header + "".join(green_insights + red_insights + neutral_insights)
-
-    # --------------------------
-    # 🔍 תובנות לפי טווח משך פעילות
-    # --------------------------
-    activity_data = []
-    for item in translated_data_global.get("activities", []):
-        if "date" in item and "activityName" in item and "duration" in item:
-            date = pd.to_datetime(item["date"])
-            activity_data.append({
-                "date": date,
-                "duration": item["duration"]
-            })
-
-    mood_data = []
-    for item in translated_data_global.get("feelings", []):
-        if "date" in item and item.get("type") == mood_field and "severity" in item:
-            mood_data.append({
-                "date": pd.to_datetime(item["date"]),
-                "mood": item["severity"]
-            })
-
-    if len(activity_data) >= 5 and len(mood_data) >= 5:
-        act_df = pd.DataFrame(activity_data)
-        mood_df = pd.DataFrame(mood_data)
-
-        matched = []
-        for _, row in act_df.iterrows():
-            end = row["date"].replace(hour=23, minute=59, second=59)
-            same_day_moods = mood_df[(mood_df["date"] >= row["date"]) & (mood_df["date"] <= end)]
-            if not same_day_moods.empty:
-                matched.append({
-                    "duration": row["duration"],
-                    "mood_after": same_day_moods["mood"].mean()
-                })
-
-        if matched:
-            df = pd.DataFrame(matched)
-            bins = [0, 30, 60, 999]
-            labels = ["Under 30 min", "30–60 min", "Over 60 min"]
-            df["duration_range"] = pd.cut(df["duration"], bins=bins, labels=labels, right=False)
-
-            summary = df.groupby("duration_range")["mood_after"].agg(["count", "mean"]).reset_index()
-            summary.columns = ["range", "n", "avg_mood"]
-
-            detailed_insights += f"\n\n### ⏱️ **Effect of activity duration on {mood_field}**\n\n"
-
-            for _, row in summary.iterrows():
-                label = row["range"]
-                count = row["n"]
-                avg = round(row["avg_mood"], 2)
-
-                if avg >= 3.5:
-                    dot = "🟢"
-                    change = "increases"
-                elif avg <= 2.5:
-                    dot = "🔴"
-                    change = "decreases"
-                else:
-                    dot = "⚫"
-                    change = "has moderate impact on"
-
-                detailed_insights += f"{dot} **{label} activities** ({int(count)} times): {change} {mood_field_lower} (avg: {avg}/5)\n\n"
-
     return detailed_insights
 
 
