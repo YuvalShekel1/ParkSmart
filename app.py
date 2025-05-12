@@ -1129,4 +1129,3 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.launch(server_name='0.0.0.0', server_port=port)
-אני רוצה להוסיף גם שיחפש תובנות של משך זמן פעילות אם זה משפיע - אם זה נגיד מתחת ל30 דק, בין 30-60 וכו
