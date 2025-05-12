@@ -724,22 +724,25 @@ def analyze_activity_patterns(data, mood_field):
             relevant_moods = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["date"] <= end_of_day)]
             if not relevant_moods.empty:
                 avg_mood = relevant_moods["severity"].mean()
-                activity_key = act["activity_name"].strip().title().replace(" ", "_")
                 matched_data.append({
-                 f"{activity_key}__duration": act["duration"],
-                 f"{activity_key}__intensity_{act['intensity'].strip().capitalize()}": 1,
-                 "mood_after": avg_mood
+                    "activity_name": act["activity_name"],
+                    "duration": act["duration"],
+                    "intensity": act["intensity"],
+                    "mood_after": avg_mood
                 })
-
 
         if len(matched_data) < 3:
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-        df = df.fillna(0)
-        X = df.drop(columns=["mood_after"])  
+        X = df[["activity_name", "duration", "intensity"]]
         y = df["mood_after"]
-        model = LinearRegression()
+
+        preprocessor = ColumnTransformer([
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+        ], remainder='passthrough')
+
+        model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
 
         coefs = model.named_steps["linearregression"].coef_
