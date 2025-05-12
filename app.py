@@ -880,7 +880,7 @@ def activity_analysis_summary(mood_field):
     if not advanced_analysis:
         return "No patterns found."
 
-    detailed_insights = "🏃 **Activity impact on {mood_field}**:"\n\n"
+    detailed_insights = "🏃 **Activity impact on {mood_field}**:\n\n"
     for item in advanced_analysis:
         name = item.get("feature", "")
         effect = item.get("effect")
