@@ -694,32 +694,36 @@ def analyze_activity_patterns(data, mood_field):
         activity_data = []
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
-                name = item["activityName"]
+                name = item["activityName"].strip()
+                intensity = item["intensity"].strip()
+                duration = item["duration"]
+
                 if not name or len(name) < 2:
                     continue
-                duration = item["duration"]
+
+                # קטגוריית משך: מתחת ל־30, בין 30 ל־60, מעל 60
                 if duration < 30:
-                    duration_group = "<30"
+                    duration_cat = "<30"
                 elif 30 <= duration <= 60:
-                    duration_group = "30–60"
+                    duration_cat = "30–60"
                 else:
-                    duration_group = ">60"
+                    duration_cat = ">60"
+
+                label = f"{name} ({intensity}, {duration_cat})"
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "activity_name": name,
-                    "duration": duration,
-                    "intensity": item["intensity"],
-                    "duration_group": duration_group,
-                    "activity_duration_combo": f"{name} ({duration_group})"
+                    "activity_label": label,
+                    "mood_after": None
                 })
 
-        mood_data = []
-        for item in data["feelings"]:
-            if "date" in item and item.get("type") == mood_field and "severity" in item:
-                mood_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "severity": item["severity"]
-                })
+        mood_data = [
+            {
+                "date": pd.to_datetime(item["date"]),
+                "severity": item["severity"]
+            }
+            for item in data["feelings"]
+            if "date" in item and item.get("type") == mood_field and "severity" in item
+        ]
 
         if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
@@ -734,11 +738,7 @@ def analyze_activity_patterns(data, mood_field):
             if not relevant_moods.empty:
                 avg_mood = relevant_moods["severity"].mean()
                 matched_data.append({
-                    "activity_name": act["activity_name"],
-                    "duration": act["duration"],
-                    "intensity": act["intensity"],
-                    "duration_group": act["duration_group"],
-                    "activity_duration_combo": act["activity_duration_combo"],
+                    "activity_label": act["activity_label"],
                     "mood_after": avg_mood
                 })
 
@@ -746,12 +746,12 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched activity-mood data for analysis."
 
         df = pd.DataFrame(matched_data)
-        X = df[["activity_name", "intensity", "duration_group", "activity_duration_combo"]]
+        X = df[["activity_label"]]
         y = df["mood_after"]
 
         preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity", "duration_group", "activity_duration_combo"])
-        ])
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_label"])
+        ], remainder='passthrough')
 
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
@@ -761,12 +761,10 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for name, coef in zip(feature_names, coefs):
-            result.append({
-                "feature": name.split("__")[-1],
-                "effect": round(coef, 2)
-            })
+            result.append({"feature": name.split("__")[-1], "effect": round(coef, 2)})
 
         return result
+
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
 
