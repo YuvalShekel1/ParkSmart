@@ -1716,14 +1716,6 @@ def symptom_analysis_summary(mood_field):
     
     return combined_insights
 
-הוספתי סינון כדי לא לכלול סימפטומים מסוג "Other Symptoms" בניתוח:
-pythonif "type" not in item or item["type"] in ["Parkinson's State", "My Mood", "Physical State", "Other Symptoms"]:
-    continue
-
-הסרתי את האנליזה של חומרת הסימפטומים והשפעתה
-הסרתי את האנליזה של שילובי סימפטומים
-שמרתי על הדרישה למינימום 2 תצפיות לכל סימפטום כדי לוודא אמינות:
-python# ספירת מספר התצפיות לכל סוג סימפטום
 symptom_counts = {}
 for item in matched_data:
     symptom_type = item["symptom_type"]
