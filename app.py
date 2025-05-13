@@ -1716,14 +1716,6 @@ def symptom_analysis_summary(mood_field):
     
     return combined_insights
 
-symptom_counts = {}
-for item in matched_data:
-    symptom_type = item["symptom_type"]
-    symptom_counts[symptom_type] = symptom_counts.get(symptom_type, 0) + 1
-
-# סינון רק סימפטומים עם לפחות 2 תצפיות
-filtered_data = [item for item in matched_data if symptom_counts[item["symptom_type"]] >= 2]
-
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
     global translated_data_global
