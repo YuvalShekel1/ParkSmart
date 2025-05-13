@@ -937,12 +937,12 @@ def analyze_activity_patterns(data, mood_field):
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
 def analyze_medication_patterns(data, mood_field):
-    if not data or "medications" not in data or "symptoms" not in data:
+    if not data or "medications" not in data or "feelings" not in data:
         return "Not enough data for medication pattern analysis."
-    
+
     try:
         # חילוץ נתוני תרופות
-        med_data = []
+        medication_data = []
         for item in data.get("medications", []):
             if "date" in item and "name" in item:
                 med_name = item.get("name", "")
@@ -952,100 +952,84 @@ def analyze_medication_patterns(data, mood_field):
                 if not is_valid or len(med_name) < 2:
                     continue
                 
-                med_data.append({
+                medication_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "name": med_name,
-                    "quantity": item.get("quantity", 1)
+                    "medication_name": med_name
                 })
-        
-        # קבל נתוני מצב רוח/סימפטום
+
+        # חילוץ נתוני מצב רוח
         mood_data = []
-        for item in data["symptoms"]:
-            if "date" in item and "type" in item and item.get("type") == mood_field and "severity" in item:
+        for item in data["feelings"]:
+            if "date" in item and item.get("type") == mood_field and "severity" in item:
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "severity": item.get("severity", 0)
+                    "severity": item["severity"]
                 })
-        
-        if len(med_data) < 5 or len(mood_data) < 5:
+
+        if len(medication_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for medication analysis."
-        
-        # צור DataFrames
-        med_df = pd.DataFrame(med_data)
+
+        medication_df = pd.DataFrame(medication_data)
         mood_df = pd.DataFrame(mood_data)
-        
-        # קבץ לפי יום ליצירת טרנזקציות
-        med_df["day"] = med_df["date"].dt.date
-        mood_df["day"] = mood_df["date"].dt.date
-        
-        # צור סט נתוני טרנזקציות
-        days = sorted(set(list(med_df["day"]) + list(mood_df["day"])))
-        transactions = []
-        
-        for day in days:
-            day_meds = med_df[med_df["day"] == day]["name"].unique().tolist()
+
+        # התאמת תרופות למצב רוח: מצב רוח באותו יום לאחר לקיחת תרופה
+        matched_data = []
+        for _, med in medication_df.iterrows():
+            med_date = med["date"]
+            end_of_day = med_date.replace(hour=23, minute=59, second=59)
+            relevant_moods = mood_df[(mood_df["date"] >= med_date) & (mood_df["date"] <= end_of_day)]
             
-            # עבור מצב רוח, קבל את הממוצע של אותו יום
-            day_mood_df = mood_df[mood_df["day"] == day]
+            if not relevant_moods.empty:
+                avg_mood = relevant_moods["severity"].mean()
+                matched_data.append({
+                    "medication_name": med["medication_name"],
+                    "mood_after": avg_mood
+                })
+
+        if len(matched_data) < 3:
+            return "Not enough matched medication-mood data for analysis."
             
-            if not day_mood_df.empty:
-                avg_severity = day_mood_df["severity"].mean()
-                mood_level = f"{mood_field}_Level_{round(avg_severity)}"
-                transaction = day_meds + [mood_level]
-                transactions.append(transaction)
-        
-        if len(transactions) < 5:
-            return "Not enough daily data for pattern analysis."
-        
-        # הפעל אלגוריתם Apriori עבור סטים תדירים
-        te = TransactionEncoder()
-        te_ary = te.fit(transactions).transform(transactions)
-        df = pd.DataFrame(te_ary, columns=te.columns_)
-        
-        # מצא סטים תדירים
-        frequent_itemsets = apriori(df, min_support=0.1, use_colnames=True)
-        
-        if frequent_itemsets.empty:
-            return "No significant patterns found with current support threshold."
-        
-        # צור חוקי אסוציאציה
-        rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.5)
-        
-        if rules.empty:
-            return "No strong association rules found."
-        
-        # סנן חוקים הקשורים לרמות מצב רוח
-        mood_rules = []
-        for _, rule in rules.iterrows():
-            antecedents = list(rule["antecedents"])
-            # בדיקה אם אנטיצדנט או קונסקוונט מכילים דירוגי רמת מצב רוח
-            mood_level_pattern = f"{mood_field}_Level_"
-            has_mood = False
+        # ספירת מספר התצפיות לכל סוג תרופה
+        medication_counts = {}
+        for item in matched_data:
+            med_name = item["medication_name"]
+            medication_counts[med_name] = medication_counts.get(med_name, 0) + 1
             
-            for item in list(rule["antecedents"]) + list(rule["consequents"]):
-                if isinstance(item, str) and item.startswith(mood_level_pattern):
-                    has_mood = True
-                    break
-            
-            if has_mood:
-                rule_dict = {
-                    "antecedents": list(rule["antecedents"]),
-                    "consequents": list(rule["consequents"]),
-                    "confidence": rule["confidence"],
-                    "lift": rule["lift"]
-                }
-                mood_rules.append(rule_dict)
+        # סינון רק תרופות עם לפחות 2 תצפיות
+        filtered_data = [item for item in matched_data if medication_counts[item["medication_name"]] >= 2]
         
-        if len(mood_rules) == 0:
-            return "No significant medication-mood associations found."
-            
-        # מיון לפי lift (חשיבות)
-        mood_rules.sort(key=lambda x: x["lift"], reverse=True)
+        if len(filtered_data) < 3:
+            return "Not enough matched data after filtering (minimum 2 samples per medication)."
+
+        df = pd.DataFrame(filtered_data)
         
-        return mood_rules[:5]  # החזר 5 חוקים עליונים
+        # הכנת הנתונים לרגרסיה לינארית - בדיוק כמו בפעילויות
+        X = pd.get_dummies(df[["medication_name"]], drop_first=False)
+        y = df["mood_after"]
+
+        # רגרסיה לינארית
+        model = LinearRegression()
+        model.fit(X, y)
+
+        # חילוץ המקדמים וחישוב ההשפעות
+        result = []
+        for i, (name, coef) in enumerate(zip(X.columns, model.coef_)):
+            feature_type = "medication_name"
+            feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
+                
+            result.append({
+                "feature_type": feature_type,
+                "feature_value": feature_value,
+                "effect": round(coef, 2)
+            })
+
+        # מיון התוצאות לפי גודל ההשפעה (מוחלט)
+        result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
+
+        return result
     except Exception as e:
         return f"Error in medication pattern analysis: {str(e)}"
-
+        
 # פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
@@ -1128,41 +1112,55 @@ def activity_analysis_summary(mood_field):
 def medication_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
+    
     medication_df, mood_df = prepare_medication_and_mood_data(translated_data_global, mood_field)
     basic_insights = generate_medication_insights(medication_df, mood_df)
     
-    # שלב את התובנות הבסיסיות עם הניתוח המתקדם
+    # ניתוח מתקדם של דפוסים בתרופות - בדיוק כמו בפעילויות
     advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
     
     if isinstance(advanced_analysis, str):
-        if "Not enough" in advanced_analysis or "No significant" in advanced_analysis:
-            return basic_insights
         return basic_insights + "\n\n" + advanced_analysis
     
-    detailed_insights = "\n\nDetailed Medication Patterns:\n"
-    for idx, rule in enumerate(advanced_analysis[:3]):
-        antecedents = list(rule.get("antecedents", []))
-        consequents = list(rule.get("consequents", []))
-        
-        meds = []
-        mood_level = None
-        
-        for item in antecedents + consequents:
-            if isinstance(item, str):
-                if item.startswith(f"{mood_field}_Level_"):
-                    mood_level = item.replace(f"{mood_field}_Level_", "Rating: ")
-                else:
-                    meds.append(item)
-        
-        if meds and mood_level:
-            meds_str = ", ".join(meds)
-            detailed_insights += f"- {meds_str} associated with {mood_level}\n"
-            detailed_insights += f"  (Confidence: {rule.get('confidence', 0):.2f}, Lift: {rule.get('lift', 0):.2f})\n"
+    if not advanced_analysis:
+        return basic_insights + "\n\nNo medication patterns found."
     
-    if detailed_insights != "\n\nDetailed Medication Patterns:\n":
-        return basic_insights + detailed_insights
-    else:
-        return basic_insights
+    # עיבוד התובנות בדיוק כמו בפעילויות
+    mood_field_lower = mood_field.lower()
+    header = f"\n## 💊 **Medication impact on {mood_field}**\n\n"
+    
+    green_insights = []
+    red_insights = []
+    neutral_insights = []
+    
+    for item in advanced_analysis:
+        feature_type = item.get("feature_type", "")
+        feature_value = item.get("feature_value", "")
+        effect = item.get("effect")
+        effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
+        
+        # קביעת התווית להצגה
+        label = feature_value.strip().title()
+        
+        # קביעת כיוון ותו (בדיוק כמו בפעילויות)
+        if abs(effect) < 0.05:
+            line = f"⚫ **{label}**: no significant impact\n\n"
+            neutral_insights.append(line)
+        elif effect > 0:
+            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+            green_insights.append(line)
+        else:
+            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+            red_insights.append(line)
+    
+    # שילוב התובנות
+    pattern_insights = header + "".join(green_insights + red_insights + neutral_insights)
+    
+    # שילוב הכל יחד
+    combined_insights = basic_insights + pattern_insights
+    
+    return combined_insights
+    
 def nutrition_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
