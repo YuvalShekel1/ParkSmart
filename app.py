@@ -1269,12 +1269,6 @@ def analyze_symptom_patterns(data, mood_field):
         return "No mood data found. Please check your data structure."
     
     try:
-        # יצירת רשימת כל סוגי הסימפטומים הייחודיים
-        symptom_types = set()
-        for item in symptoms_data:
-            if "type" in item and item["type"] not in ["Parkinson's State", "My Mood", "Physical State", "Other Symptoms"]:
-                symptom_types.add(item["type"])
-        
         # המרת הנתונים לפורמט מתאים לניתוח
         symptom_data = []
         for item in symptoms_data:
@@ -1298,91 +1292,64 @@ def analyze_symptom_patterns(data, mood_field):
         # חילוץ נתוני מצב רוח
         mood_data = []
         for item in feelings_data:
-            if "date" in item and "severity" in item:
+            if "date" in item and "severity" in item and item.get("type") == mood_field:
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "severity": item["severity"],
-                    "type": item.get("type", "Unknown")
+                    "severity": item["severity"]
                 })
-
-        # סינון לפי סוג המצב רק אם יש מספיק נתונים
-        if any(item["type"] == mood_field for item in mood_data):
-            mood_data = [item for item in mood_data if item["type"] == mood_field]
         
         print(f"Found {len(symptom_data)} symptom records and {len(mood_data)} mood records")
         
         # בדיקה שיש מספיק נתונים לניתוח
-        if len(symptom_data) < 2 or len(mood_data) < 2:
+        if len(symptom_data) < 3 or len(mood_data) < 3:
             return f"Not enough data points for symptom analysis. Found {len(symptom_data)} symptom records and {len(mood_data)} mood records."
 
         symptom_df = pd.DataFrame(symptom_data)
         mood_df = pd.DataFrame(mood_data)
 
-        # התאמת סימפטומים למצב רוח באותו יום או בטווח זמן סביר
-        matched_data = []
-        
-        for _, symptom in symptom_df.iterrows():
-            symptom_date = symptom["date"]
-            
-            # חפש דיווחי מצב רוח באותו יום
-            same_day = symptom_date.date()
-            relevant_moods = mood_df[mood_df["date"].dt.date == same_day]
-            
-            if not relevant_moods.empty:
-                avg_mood = relevant_moods["severity"].mean()
-                
-                matched_data.append({
-                    "symptom_type": symptom["symptom_type"],
-                    "symptom_severity": symptom["severity"],
-                    "mood_value": avg_mood,
-                    "date": same_day
-                })
-
-        # בדיקה שיש מספיק נתונים מותאמים
-        if len(matched_data) < 2:
-            return f"Not enough matched symptom-mood data for analysis. Found only {len(matched_data)} matches."
-            
-        # ספירת מספר התצפיות לכל סוג סימפטום
-        symptom_counts = {}
-        for item in matched_data:
-            symptom_type = item["symptom_type"]
-            symptom_counts[symptom_type] = symptom_counts.get(symptom_type, 0) + 1
-        
-        # סינון רק סימפטומים עם לפחות 2 תצפיות
-        filtered_data = [item for item in matched_data if symptom_counts[item["symptom_type"]] >= 2]
-        
-        if len(filtered_data) < 2:
-            return f"Not enough data after filtering for symptoms with at least 2 occurrences. Found only {len(filtered_data)} records."
-
-        df = pd.DataFrame(filtered_data)
-        
-        # הכנת הנתונים לרגרסיה לינארית - one-hot encoding לסוגי הסימפטומים
-        X = pd.get_dummies(df[["symptom_type"]], drop_first=False)
-        y = df["mood_value"]
-
-        # רגרסיה לינארית
-        model = LinearRegression()
-        model.fit(X, y)
-
-        # חילוץ המקדמים וחישוב ההשפעות
+        # במקום לעשות רגרסיה לינארית מלאה, נעשה ניתוח פשוט יותר על כל סימפטום בנפרד
         result = []
         
-        # תחילה המקדמים של סוגי הסימפטומים
-        for i, col in enumerate(X.columns):
-            coef = model.coef_[i]
+        # נמצא את כל סוגי הסימפטומים הייחודיים
+        symptom_types = symptom_df["symptom_type"].unique()
+        
+        for symptom_type in symptom_types:
+            # נמצא את כל התאריכים עם הסימפטום הזה
+            symptom_dates = symptom_df[symptom_df["symptom_type"] == symptom_type]["date"].dt.date.unique()
             
-            # מקבלים שם קריא
-            if "_" in col:
-                feature_value = col.split("_", 1)[1]
-            else:
-                feature_value = col
+            # נמצא את מצב הרוח הממוצע בימים עם הסימפטום
+            symptom_day_moods = []
+            for date in symptom_dates:
+                day_moods = mood_df[mood_df["date"].dt.date == date]["severity"]
+                if not day_moods.empty:
+                    symptom_day_moods.append(day_moods.mean())
+            
+            # נחשב את הממוצע של מצב הרוח בימים עם הסימפטום
+            if len(symptom_day_moods) >= 2:  # לפחות 2 תצפיות
+                symptom_avg_mood = sum(symptom_day_moods) / len(symptom_day_moods)
                 
-            result.append({
-                "feature_type": "symptom_type",
-                "feature_value": feature_value,
-                "effect": round(coef, 2)
-            })
-
+                # נחשב את הממוצע של מצב הרוח בימים ללא הסימפטום
+                non_symptom_dates = [d for d in mood_df["date"].dt.date.unique() if d not in symptom_dates]
+                non_symptom_day_moods = []
+                for date in non_symptom_dates:
+                    day_moods = mood_df[mood_df["date"].dt.date == date]["severity"]
+                    if not day_moods.empty:
+                        non_symptom_day_moods.append(day_moods.mean())
+                
+                # חישוב ההשפעה רק אם יש מספיק נתונים לימים ללא הסימפטום
+                if len(non_symptom_day_moods) >= 2:
+                    non_symptom_avg_mood = sum(non_symptom_day_moods) / len(non_symptom_day_moods)
+                    
+                    # ההשפעה היא ההפרש בין מצב הרוח הממוצע עם וללא הסימפטום
+                    effect = symptom_avg_mood - non_symptom_avg_mood
+                    
+                    result.append({
+                        "feature_type": "symptom_type",
+                        "feature_value": symptom_type,
+                        "effect": round(effect, 2),
+                        "count": len(symptom_day_moods)
+                    })
+        
         # מיון התוצאות לפי גודל ההשפעה (מוחלט)
         result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
 
@@ -1689,26 +1656,23 @@ def symptom_analysis_summary(mood_field):
     neutral_insights = []
     
     for item in advanced_analysis:
-        feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
+        count = item.get("count", 0)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
-        # קביעת הכותרת/תווית להצגה
-        if feature_type == "symptom_type":
-            label = feature_value.strip()
-        else:
-            label = feature_value
+        # התווית היא שם הסימפטום בלי "type_"
+        label = feature_value
         
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
+            line = f"⚫ **{label}** ({count} occurrences): no significant impact\n\n"
             neutral_insights.append(line)
         elif effect > 0:
-            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+            line = f"🟢 **{label}** ({count} occurrences): increases {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
         else:
-            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+            line = f"🔴 **{label}** ({count} occurrences): decreases {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
     
     # שילוב לפי סדר עדיפות
