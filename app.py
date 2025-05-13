@@ -1330,22 +1330,21 @@ def medication_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     
-    # השתמש בפונקציה המקורית לקבלת תובנות בסיסיות
+    # השתמש בפונקציה המקורית לקבלת תובנות בסיסיות - אבל לא משתמש בהן בתוצאה הסופית
     medication_df, mood_df = prepare_medication_and_mood_data(translated_data_global, mood_field)
-    basic_insights = generate_medication_insights(medication_df, mood_df)
     
-    # ניתוח מתקדם של דפוסים בתרופות - דומה לפעילויות
+    # ניתוח מתקדם של דפוסים בתרופות
     advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
     
     if isinstance(advanced_analysis, str):
-        return basic_insights + "\n\n" + advanced_analysis
+        return advanced_analysis
     
     if not advanced_analysis:
-        return basic_insights + "\n\nNo medication patterns found."
+        return "No medication patterns found."
     
     # עיבוד התובנות בדיוק כמו בפעילויות
     mood_field_lower = mood_field.lower()
-    header = f"\n## 💊 **Medication impact on {mood_field}**\n\n"
+    header = f"## 💊 **Medication impact on {mood_field}**\n\n"
     
     green_insights = []
     red_insights = []
@@ -1361,9 +1360,13 @@ def medication_analysis_summary(mood_field):
         effect = item.get("effect")
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
-        # קביעת הכותרת/תווית להצגה
+        # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
         if feature_type == "medication_name":
-            label = feature_value.strip()
+            # הסרת המילה "name_" מתחילת שם התרופה
+            if feature_value.startswith("name_"):
+                label = feature_value.replace("name_", "")
+            else:
+                label = feature_value.strip()
         elif feature_type == "time_window":
             label = feature_value
         elif feature_type == "medication_sequence":
@@ -1398,8 +1401,8 @@ def medication_analysis_summary(mood_field):
     if green_detailed_insights or red_detailed_insights:
         detailed_insights = "\n## Detailed Medication Patterns\n\n" + "".join(green_detailed_insights + red_detailed_insights)
     
-    # שלב הכל ביחד
-    combined_insights = basic_insights + pattern_insights + detailed_insights
+    # שלב הכל ביחד - רק ללא basic_insights
+    combined_insights = pattern_insights + detailed_insights
     
     return combined_insights
     
