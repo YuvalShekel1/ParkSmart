@@ -1658,7 +1658,6 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        count = item.get("count", 0)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום בלי "type_"
@@ -1666,20 +1665,20 @@ def symptom_analysis_summary(mood_field):
         
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}** ({count} occurrences): no significant impact\n\n"
+            line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
         elif effect > 0:
-            line = f"🟢 **{label}** ({count} occurrences): increases {mood_field_lower} by {effect_str} on average\n\n"
+            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
         else:
-            line = f"🔴 **{label}** ({count} occurrences): decreases {mood_field_lower} by {effect_str} on average\n\n"
+            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
     
     # שילוב לפי סדר עדיפות
     combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
     
     return combined_insights
-
+    
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
     global translated_data_global
