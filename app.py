@@ -324,27 +324,69 @@ def upload_and_process(file_obj):
 
 
 def prepare_medication_and_mood_data(data, mood_field):
-    if not data or "medications" not in data or "feelings" not in data:
+    """
+    פונקציה מעודכנת להכנת הנתונים - בודקת גם את השדה 'medicines' וגם 'medications'
+    """
+    if not data:
         return pd.DataFrame(), pd.DataFrame()
 
-    medication_list = []
-    for item in data.get("medications", []):
-        if "date" in item:
-            medication_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "item": item
-            })
-    medication_df = pd.DataFrame(medication_list)
+    # בדיקה אם קיים medicines או medications
+    medications_list = []
+    
+    # בדוק אם השדה 'medications' קיים
+    if "medications" in data and isinstance(data["medications"], list):
+        for item in data["medications"]:
+            if "date" in item or "dateTaken" in item:
+                # שימוש ב-dateTaken אם date לא קיים
+                date_field = item.get("date", item.get("dateTaken"))
+                if date_field:
+                    medications_list.append({
+                        "date": pd.to_datetime(date_field),
+                        "item": item
+                    })
+    
+    # בדוק גם את השדה 'medicines' אם ה'medications' ריק או אפילו אם לא ריק
+    if "medicines" in data and isinstance(data["medicines"], list):
+        for item in data["medicines"]:
+            if "date" in item or "dateTaken" in item:
+                # שימוש ב-dateTaken אם date לא קיים
+                date_field = item.get("date", item.get("dateTaken"))
+                if date_field:
+                    medications_list.append({
+                        "date": pd.to_datetime(date_field),
+                        "item": item
+                    })
+    
+    medication_df = pd.DataFrame(medications_list)
 
+    # בדוק את כל הדיווחים ולא רק את אלה שמתאימים לשדה שהתבקש
     mood_list = []
-    for item in data.get("feelings", []):
-        if "date" in item and item.get("type") == mood_field and "severity" in item:
-            mood_list.append({
-                "date": pd.to_datetime(item["date"]),
-                "value": item["severity"]
-            })
+    
+    # חפש בשדה feelings
+    if "feelings" in data and isinstance(data["feelings"], list):
+        for item in data["feelings"]:
+            if "date" in item and "severity" in item:
+                # בדוק אם יש שדה type שמתאים לבקשה או אין שדה כזה
+                if item.get("type") == mood_field:
+                    mood_list.append({
+                        "date": pd.to_datetime(item["date"]),
+                        "value": item["severity"]
+                    })
+
+    # נסה ללא פילטור אם יש מעט תוצאות
+    if len(mood_list) < 3 and "feelings" in data and isinstance(data["feelings"], list):
+        mood_list = []
+        for item in data["feelings"]:
+            if "date" in item and "severity" in item:
+                mood_list.append({
+                    "date": pd.to_datetime(item["date"]),
+                    "value": item["severity"]
+                })
+    
     mood_df = pd.DataFrame(mood_list)
 
+    print(f"Found {len(medication_df)} medication records and {len(mood_df)} mood records")
+    
     return medication_df, mood_df
 
 def prepare_symptom_and_mood_data(data, mood_field):
@@ -939,71 +981,98 @@ def analyze_activity_patterns(data, mood_field):
 def analyze_medication_patterns(data, mood_field):
     """
     ניתוח דפוסי תרופות והשפעתן על מצב הרוח/פרקינסון באמצעות רגרסיה לינארית
-    
-    הפונקציה תקבץ מינונים דומים, תחפש קשרים בטווח זמן הגיוני, ותנתח רצפי תרופות
+    עם דרישה מופחתת של מינימום 2 תצפיות במקום 3
     """
-    if not data or "medications" not in data or "feelings" not in data:
-        return "Not enough data for medication pattern analysis."
-
+    if not data:
+        return "No data available for analysis."
+        
+    # בדוק אם יש נתוני תרופות בשדה medicines או medications
+    medications_data = None
+    if "medications" in data and isinstance(data["medications"], list) and len(data["medications"]) > 0:
+        medications_data = data["medications"]
+    elif "medicines" in data and isinstance(data["medicines"], list) and len(data["medicines"]) > 0:
+        medications_data = data["medicines"]
+    
+    if not medications_data:
+        return "No medication data found. Please check your data structure."
+    
+    # בדוק אם יש נתוני מצב רוח
+    feelings_data = None
+    if "feelings" in data and isinstance(data["feelings"], list) and len(data["feelings"]) > 0:
+        feelings_data = data["feelings"]
+    
+    if not feelings_data:
+        return "No mood data found. Please check your data structure."
+    
     try:
         # חילוץ נתוני תרופות
         medication_data = []
-        for item in data.get("medications", []):
-            if "date" in item and "name" in item:
-                med_name = item.get("name", "")
+        for item in medications_data:
+            # שימוש בשדה date או dateTaken
+            date_field = item.get("date", item.get("dateTaken"))
+            if not date_field:
+                continue
                 
-                # סינון שמות תרופות לא תקינים
-                is_valid = all(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05FF' or c in [',', '.', '-', '(', ')'] for c in med_name)
-                if not is_valid or len(med_name) < 2:
-                    continue
-                
-                # קטגוריזציה של מינונים - שינוי מרכזי #1
-                categorized_name = med_name
-                quantity = float(item.get("quantity", 0))
-                
-                # קטגוריזציה של דופיקר לפי מינון
-                if "דופיקר" in med_name:
-                    if quantity >= 250:
-                        categorized_name = "דופיקר מינון גבוה"
-                    elif quantity >= 175:
-                        categorized_name = "דופיקר מינון בינוני"
-                    else:
-                        categorized_name = "דופיקר מינון נמוך"
-                
-                medication_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "medication_name": categorized_name,
-                    "original_name": med_name,
-                    "quantity": quantity
-                })
+            med_name = item.get("name", "")
+            
+            # סינון שמות תרופות לא תקינים - אבל מקל יותר
+            if not med_name or len(med_name) < 2:
+                continue
+            
+            # קטגוריזציה של מינונים
+            categorized_name = med_name
+            quantity = float(item.get("quantity", 0))
+            
+            # קטגוריזציה של דופיקר לפי מינון
+            if "דופיקר" in med_name:
+                if quantity >= 250:
+                    categorized_name = "דופיקר מינון גבוה"
+                elif quantity >= 175:
+                    categorized_name = "דופיקר מינון בינוני"
+                else:
+                    categorized_name = "דופיקר מינון נמוך"
+            
+            medication_data.append({
+                "date": pd.to_datetime(date_field),
+                "medication_name": categorized_name,
+                "original_name": med_name,
+                "quantity": quantity
+            })
 
-        # חילוץ נתוני מצב רוח
+        # חילוץ נתוני מצב רוח (כל סוגי הדיווחים)
         mood_data = []
-        for item in data["feelings"]:
-            if "date" in item and item.get("type") == mood_field and "severity" in item:
+        for item in feelings_data:
+            if "date" in item and "severity" in item:
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
-                    "severity": item["severity"]
+                    "severity": item["severity"],
+                    "type": item.get("type", "Unknown")
                 })
 
-        if len(medication_data) < 3 or len(mood_data) < 3:
-            return "Not enough data points for medication analysis."
+        # סינון לפי סוג המצב רק אם יש מספיק נתונים
+        if any(item["type"] == mood_field for item in mood_data):
+            mood_data = [item for item in mood_data if item["type"] == mood_field]
+        
+        print(f"Found {len(medication_data)} medication records and {len(mood_data)} mood records")
+        
+        # שינוי כאן: מינימום 2 במקום 3
+        if len(medication_data) < 2 or len(mood_data) < 2:
+            return f"Not enough data points for medication analysis. Found {len(medication_data)} medication records and {len(mood_data)} mood records."
 
         medication_df = pd.DataFrame(medication_data)
         mood_df = pd.DataFrame(mood_data)
 
-        # שינוי מרכזי #2: התאמת תרופות למצב רוח באותו יום 
-        # או בטווח זמן סביר (עד 3 שעות) אחרי נטילת התרופה
+        # התאמת תרופות למצב רוח באותו יום או בטווח זמן סביר
         matched_data = []
         
         for _, med in medication_df.iterrows():
             med_date = med["date"]
             
-            # חפש דיווחי מצב רוח שהם עד 3 שעות אחרי התרופה
+            # חפש דיווחי מצב רוח עד 3 שעות אחרי התרופה
             relevant_moods = mood_df[(mood_df["date"] >= med_date) & 
                                     (mood_df["date"] <= med_date + pd.Timedelta(hours=3))]
             
-            # אם אין דיווח ספציפי בטווח זמן קרוב, חפש באותו יום
+            # אם אין קרובים, חפש באותו יום
             if relevant_moods.empty:
                 end_of_day = med_date.replace(hour=23, minute=59, second=59)
                 relevant_moods = mood_df[(mood_df["date"] >= med_date) & 
@@ -1012,7 +1081,7 @@ def analyze_medication_patterns(data, mood_field):
             if not relevant_moods.empty:
                 avg_mood = relevant_moods["severity"].mean()
                 
-                # מצא את פרק הזמן בין נטילת התרופה לדיווח מצב הרוח הראשון
+                # מצא את פרק הזמן בין נטילת התרופה לדיווח הראשון
                 first_mood = relevant_moods.iloc[0]
                 time_diff_hours = (first_mood["date"] - med_date).total_seconds() / 3600
                 
@@ -1024,24 +1093,26 @@ def analyze_medication_patterns(data, mood_field):
                     "time_diff_hours": time_diff_hours
                 })
 
-        if len(matched_data) < 3:
-            return "Not enough matched medication-mood data for analysis."
+        # שינוי כאן: מינימום 2 במקום 3
+        if len(matched_data) < 2:
+            return f"Not enough matched medication-mood data for analysis. Found only {len(matched_data)} matches."
             
-        # שינוי מרכזי #3: ספירת מספר התצפיות לכל סוג תרופה
+        # ספירת מספר התצפיות לכל סוג תרופה
         medication_counts = {}
         for item in matched_data:
             med_name = item["medication_name"]
             medication_counts[med_name] = medication_counts.get(med_name, 0) + 1
             
-        # סינון רק תרופות עם לפחות 2 תצפיות
+        # סינון רק תרופות עם לפחות 2 תצפיות (לא שינינו את זה כי זה כבר 2)
         filtered_data = [item for item in matched_data if medication_counts[item["medication_name"]] >= 2]
         
-        if len(filtered_data) < 3:
-            return "Not enough matched data after filtering (minimum 2 samples per medication)."
+        # שינוי כאן: מינימום 2 במקום 3
+        if len(filtered_data) < 2:
+            return f"Not enough data after filtering for medications with at least 2 occurrences. Found only {len(filtered_data)} records."
 
         df = pd.DataFrame(filtered_data)
         
-        # הכנת הנתונים לרגרסיה לינארית - בדיוק כמו בפעילויות
+        # הכנת הנתונים לרגרסיה לינארית
         X = pd.get_dummies(df[["medication_name"]], drop_first=False)
         y = df["mood_after"]
 
@@ -1054,11 +1125,11 @@ def analyze_medication_patterns(data, mood_field):
         for i, (name, coef) in enumerate(zip(X.columns, model.coef_)):
             feature_type = "medication_name"
             
-            # מקבלים שם קריא מעמודת הדאמי
+            # מקבלים שם קריא
             if "_" in name:
                 feature_value = name.split("_", 1)[1]
             else:
-                feature_value = name  # במקרה שאין '_'
+                feature_value = name
                 
             result.append({
                 "feature_type": feature_type,
@@ -1066,9 +1137,8 @@ def analyze_medication_patterns(data, mood_field):
                 "effect": round(coef, 2)
             })
 
-        # שינוי מרכזי #4: ניתוח השפעת מרווחי זמן
-        # נוסיף ניתוח של השפעת פרק הזמן בין נטילת התרופה לדיווח המצב
-        if "time_diff_hours" in df.columns and len(df) >= 5:  # רק אם יש מספיק נתונים
+        # ניתוח השפעת מרווחי זמן - מקל בדרישות
+        if "time_diff_hours" in df.columns and len(df) >= 4:
             try:
                 # יוצרים קטגוריות של חלונות זמן
                 df["time_window"] = pd.cut(
@@ -1081,32 +1151,31 @@ def analyze_medication_patterns(data, mood_field):
                 for med in df["medication_name"].unique():
                     med_data = df[df["medication_name"] == med]
                     
-                    # רק אם יש מספיק נתונים
-                    if len(med_data) >= 3:
+                    # שינוי כאן: מינימום 2 במקום 3
+                    if len(med_data) >= 2:
                         overall_avg = med_data["mood_after"].mean()
                         
                         # בדיקת השפעות חלונות זמן שונים
                         for window in ["0-1 hour", "1-2 hours", "2-4 hours", "4+ hours"]:
                             window_data = med_data[med_data["time_window"] == window]
                             
-                            # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
-                            if len(window_data) >= 2:
+                            # בדוק שיש לפחות 1 מופע (מקל אף יותר)
+                            if len(window_data) >= 1:
                                 avg_mood = window_data["mood_after"].mean()
                                 effect = avg_mood - overall_avg
                                 
-                                # בדוק אם ההשפעה משמעותית
-                                if abs(effect) >= 0.2:
+                                # בדוק אם ההשפעה משמעותית (מקל גם כאן)
+                                if abs(effect) >= 0.1:
                                     result.append({
                                         "feature_type": "time_window",
                                         "feature_value": f"{med} within {window}",
                                         "effect": round(effect, 2)
                                     })
             except Exception as e:
-                # במקרה של שגיאה, המשך עם התוצאות הקיימות
+                print(f"Error in time window analysis: {str(e)}")
                 pass
 
-        # שינוי מרכזי #5: ניתוח רצפי תרופות
-        # נבדוק את ההשפעה של נטילת רצף תרופות באותו יום
+        # ניתוח רצפי תרופות - מקל בדרישות גם כאן
         try:
             # ארגון התרופות לפי תאריך
             meds_by_date = {}
@@ -1147,11 +1216,11 @@ def analyze_medication_patterns(data, mood_field):
                                 "date": date
                             })
             
-            # בדוק אם יש רצפים שמופיעים לפחות פעמיים
+            # בדוק אם יש רצפים שמופיעים לפחות פעם אחת (מקל מאוד)
             if sequence_data:
                 seq_df = pd.DataFrame(sequence_data)
                 seq_counts = seq_df["sequence"].value_counts()
-                common_sequences = seq_counts[seq_counts >= 2].index.tolist()
+                common_sequences = seq_counts[seq_counts >= 1].index.tolist()
                 
                 for seq in common_sequences:
                     seq_mood_avg = seq_df[seq_df["sequence"] == seq]["mood"].mean()
@@ -1159,14 +1228,15 @@ def analyze_medication_patterns(data, mood_field):
                     general_avg = seq_df["mood"].mean()
                     effect = seq_mood_avg - general_avg
                     
-                    if abs(effect) >= 0.2:  # רק אם ההשפעה משמעותית
+                    # מקל גם בהשפעה המינימלית
+                    if abs(effect) >= 0.1:
                         result.append({
                             "feature_type": "medication_sequence",
                             "feature_value": seq,
                             "effect": round(effect, 2)
                         })
         except Exception as e:
-            # במקרה של שגיאה, המשך עם התוצאות הקיימות
+            print(f"Error in medication sequence analysis: {str(e)}")
             pass
 
         # מיון התוצאות לפי גודל ההשפעה (מוחלט)
@@ -1174,8 +1244,7 @@ def analyze_medication_patterns(data, mood_field):
 
         return result
     except Exception as e:
-        return f"Error in medication pattern analysis: {str(e)}"        
-# פונקציות ניתוח עבור ממשק המשתמש
+        return f"Error in medication pattern analysis: {str(e)}"# פונקציות ניתוח עבור ממשק המשתמש
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
