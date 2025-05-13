@@ -1715,7 +1715,6 @@ def symptom_analysis_summary(mood_field):
     combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
     
     return combined_insights
-השינויים שביצעתי:
 
 הוספתי סינון כדי לא לכלול סימפטומים מסוג "Other Symptoms" בניתוח:
 pythonif "type" not in item or item["type"] in ["Parkinson's State", "My Mood", "Physical State", "Other Symptoms"]:
