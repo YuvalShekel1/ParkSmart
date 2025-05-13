@@ -1272,7 +1272,7 @@ def analyze_symptom_patterns(data, mood_field):
         # יצירת רשימת כל סוגי הסימפטומים הייחודיים
         symptom_types = set()
         for item in symptoms_data:
-            if "type" in item and item["type"] not in ["Parkinson's State", "My Mood", "Physical State"]:
+            if "type" in item and item["type"] not in ["Parkinson's State", "My Mood", "Physical State", "Other Symptoms"]:
                 symptom_types.add(item["type"])
         
         # המרת הנתונים לפורמט מתאים לניתוח
@@ -1282,8 +1282,8 @@ def analyze_symptom_patterns(data, mood_field):
             if not date_field:
                 continue
                 
-            # לוקחים רק סימפטומים ולא תחושות כלליות
-            if "type" not in item or item["type"] in ["Parkinson's State", "My Mood", "Physical State"]:
+            # לוקחים רק סימפטומים ולא תחושות כלליות ולא "תסמינים אחרים"
+            if "type" not in item or item["type"] in ["Parkinson's State", "My Mood", "Physical State", "Other Symptoms"]:
                 continue
                 
             severity = float(item.get("severity", 0))
@@ -1347,7 +1347,7 @@ def analyze_symptom_patterns(data, mood_field):
         for item in matched_data:
             symptom_type = item["symptom_type"]
             symptom_counts[symptom_type] = symptom_counts.get(symptom_type, 0) + 1
-            
+        
         # סינון רק סימפטומים עם לפחות 2 תצפיות
         filtered_data = [item for item in matched_data if symptom_counts[item["symptom_type"]] >= 2]
         
@@ -1358,8 +1358,6 @@ def analyze_symptom_patterns(data, mood_field):
         
         # הכנת הנתונים לרגרסיה לינארית - one-hot encoding לסוגי הסימפטומים
         X = pd.get_dummies(df[["symptom_type"]], drop_first=False)
-        # הוספת חומרת הסימפטום כמשתנה נוסף
-        X["symptom_severity"] = df["symptom_severity"]
         y = df["mood_value"]
 
         # רגרסיה לינארית
@@ -1370,10 +1368,8 @@ def analyze_symptom_patterns(data, mood_field):
         result = []
         
         # תחילה המקדמים של סוגי הסימפטומים
-        dummy_columns = [col for col in X.columns if col != "symptom_severity"]
-        for i, col in enumerate(dummy_columns):
-            idx = X.columns.get_loc(col)
-            coef = model.coef_[idx]
+        for i, col in enumerate(X.columns):
+            coef = model.coef_[i]
             
             # מקבלים שם קריא
             if "_" in col:
@@ -1386,87 +1382,6 @@ def analyze_symptom_patterns(data, mood_field):
                 "feature_value": feature_value,
                 "effect": round(coef, 2)
             })
-        
-        # המקדם של חומרת הסימפטום
-        severity_idx = X.columns.get_loc("symptom_severity")
-        severity_coef = model.coef_[severity_idx]
-        
-        result.append({
-            "feature_type": "symptom_severity",
-            "feature_value": "Symptom Severity",
-            "effect": round(severity_coef, 2)
-        })
-        
-        # ניתוח של השפעת הסימפטומים לפי רמת חומרה
-        try:
-            # יצירת קטגוריות של חומרה
-            df["severity_category"] = pd.cut(
-                df["symptom_severity"],
-                bins=[0, 2, 3, 5],
-                labels=["Low", "Medium", "High"]
-            )
-            
-            # בדיקת ההשפעה של כל סימפטום בחומרות שונות
-            for symptom in df["symptom_type"].unique():
-                symptom_data = df[df["symptom_type"] == symptom]
-                
-                # מינימום 2 תצפיות
-                if len(symptom_data) >= 2:
-                    overall_avg = symptom_data["mood_value"].mean()
-                    
-                    # בדיקת השפעות חומרות שונות
-                    for severity in ["Low", "Medium", "High"]:
-                        severity_data = symptom_data[symptom_data["severity_category"] == severity]
-                        
-                        # בדוק שיש לפחות מופע אחד
-                        if len(severity_data) >= 1:
-                            avg_mood = severity_data["mood_value"].mean()
-                            effect = avg_mood - overall_avg
-                            
-                            # בדוק אם ההשפעה משמעותית (0.1 ומעלה)
-                            if abs(effect) >= 0.1:
-                                result.append({
-                                    "feature_type": "severity_effect",
-                                    "feature_value": f"{symptom} with {severity} severity",
-                                    "effect": round(effect, 2)
-                                })
-        except Exception as e:
-            print(f"Error in severity analysis: {str(e)}")
-            pass
-            
-        # ניתוח השילוב של סימפטומים שונים
-        try:
-            # מציאת ימים עם יותר מסימפטום אחד
-            symptom_combinations = {}
-            for date, group in df.groupby("date"):
-                if len(group) >= 2:
-                    symptom_types = group["symptom_type"].tolist()
-                    for i, s1 in enumerate(symptom_types):
-                        for s2 in symptom_types[i+1:]:
-                            combo = f"{s1} & {s2}"
-                            if combo not in symptom_combinations:
-                                symptom_combinations[combo] = []
-                            symptom_combinations[combo].append({
-                                "date": date,
-                                "mood": group["mood_value"].mean()
-                            })
-            
-            # ניתוח השפעת השילובים
-            for combo, instances in symptom_combinations.items():
-                if len(instances) >= 1:  # אפילו מופע אחד מספיק לניתוח בסיסי
-                    combo_mood = np.mean([inst["mood"] for inst in instances])
-                    avg_mood = df["mood_value"].mean()  # ממוצע כללי של מצב הרוח
-                    effect = combo_mood - avg_mood
-                    
-                    if abs(effect) >= 0.15:  # רף מעט יותר גבוה לשילובים
-                        result.append({
-                            "feature_type": "symptom_combination",
-                            "feature_value": combo,
-                            "effect": round(effect, 2)
-                        })
-        except Exception as e:
-            print(f"Error in combination analysis: {str(e)}")
-            pass
 
         # מיון התוצאות לפי גודל ההשפעה (מוחלט)
         result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
@@ -1773,10 +1688,6 @@ def symptom_analysis_summary(mood_field):
     red_insights = []
     neutral_insights = []
     
-    # תובנות דפוסים מפורטים
-    green_detailed_insights = []
-    red_detailed_insights = []
-    
     for item in advanced_analysis:
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
@@ -1786,10 +1697,6 @@ def symptom_analysis_summary(mood_field):
         # קביעת הכותרת/תווית להצגה
         if feature_type == "symptom_type":
             label = feature_value.strip()
-        elif feature_type == "symptom_severity":
-            label = feature_value
-        elif feature_type == "severity_effect" or feature_type == "symptom_combination":
-            label = feature_value
         else:
             label = feature_value
         
@@ -1798,37 +1705,33 @@ def symptom_analysis_summary(mood_field):
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
         elif effect > 0:
-            if feature_type in ["severity_effect", "symptom_combination"]:
-                line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
-                green_detailed_insights.append(line)
-            else:
-                line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
-                green_insights.append(line)
+            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+            green_insights.append(line)
         else:
-            if feature_type in ["severity_effect", "symptom_combination"]:
-                line = f"🔴 **{label}** decreases {mood_field_lower} by {effect_str} on average\n\n"
-                red_detailed_insights.append(line)
-            else:
-                line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
-                red_insights.append(line)
+            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+            red_insights.append(line)
     
     # שילוב לפי סדר עדיפות
-    basic_insights = header + "".join(green_insights + red_insights + neutral_insights)
-    
-    # בדוק אם יש תובנות מפורטות
-    detailed_insights = ""
-    if green_detailed_insights or red_detailed_insights:
-        detailed_insights = "\n## Detailed Symptom Patterns\n\n" + "".join(green_detailed_insights + red_detailed_insights)
-    
-    # הוספת האנליזה הקודמת של הסימפטומים כמידע נוסף 
-    # (אופציונלי, אפשר גם להסיר את זה אם רוצים רק את הניתוח החדש)
-    symptom_df, mood_df = prepare_symptom_and_mood_data(translated_data_global, mood_field)
-    basic_symptom_insights = generate_symptom_insights(symptom_df, mood_df, mood_field)
-    
-    # שלב הכל ביחד - כאן אני משתמש רק בגרסה החדשה, ללא הישנה
-    combined_insights = basic_insights + detailed_insights
+    combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
     
     return combined_insights
+השינויים שביצעתי:
+
+הוספתי סינון כדי לא לכלול סימפטומים מסוג "Other Symptoms" בניתוח:
+pythonif "type" not in item or item["type"] in ["Parkinson's State", "My Mood", "Physical State", "Other Symptoms"]:
+    continue
+
+הסרתי את האנליזה של חומרת הסימפטומים והשפעתה
+הסרתי את האנליזה של שילובי סימפטומים
+שמרתי על הדרישה למינימום 2 תצפיות לכל סימפטום כדי לוודא אמינות:
+python# ספירת מספר התצפיות לכל סוג סימפטום
+symptom_counts = {}
+for item in matched_data:
+    symptom_type = item["symptom_type"]
+    symptom_counts[symptom_type] = symptom_counts.get(symptom_type, 0) + 1
+
+# סינון רק סימפטומים עם לפחות 2 תצפיות
+filtered_data = [item for item in matched_data if symptom_counts[item["symptom_type"]] >= 2]
 
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
