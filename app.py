@@ -219,6 +219,19 @@ def calculate_complex_meal_nutrition(meal_name):
 translated_data_global = {}
 original_full_json = {}
 
+def is_improvement(effect, mood_field):
+    """
+    קובעת אם שינוי בערך נחשב לשיפור (לטובה) או להחמרה, לפי סוג השדה.
+    מחזירה True אם זה שיפור, False אם זה החמרה.
+    """
+    # בשדות אלו, ערך נמוך יותר טוב
+    reverse_fields = ["Physical State", "Parkinson's State"]
+    
+    if mood_field in reverse_fields:
+        return effect < 0  # ירידה = טוב
+    else:
+        return effect > 0  # עלייה = טוב
+
 def translate_value(value, key=None):
     if key == "notes" and not value:
         return value
@@ -1417,7 +1430,7 @@ def activity_analysis_summary(mood_field):
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif effect > 0:
+        elif is_improvement(effect, mood_field):
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
                 line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
                 green_detailed_insights.append(line)
@@ -1501,7 +1514,7 @@ def medication_analysis_summary(mood_field):
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif effect > 0:
+        elif is_improvement(effect, mood_field):
             if feature_type in ["time_window", "medication_sequence"]:
                 line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
                 green_detailed_insights.append(line)
@@ -1679,7 +1692,7 @@ def symptom_analysis_summary(mood_field):
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif effect > 0:
+        elif is_improvement(effect, mood_field):
             line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
         else:
