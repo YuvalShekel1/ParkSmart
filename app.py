@@ -1207,7 +1207,7 @@ def medication_analysis_summary(mood_field):
     combined_insights = pattern_insights + detailed_insights
     
     return combined_insights
-ִִ##
+    
 def nutrition_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
