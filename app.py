@@ -1024,6 +1024,20 @@ def analyze_symptom_patterns(data, mood_field):
     except Exception as e:
         return f"Error in symptom pattern analysis: {str(e)}"
 
+# פונקציה חדשה להגדרת הצבעים לפי סוג שדה המצב
+def determine_colors(effect, mood_field):
+    """
+    קובע את הצבע והכיוון לפי סוג שדה המצב:
+    - עבור My Mood: עלייה = חיובי (ירוק), ירידה = שלילי (אדום)
+    - עבור Parkinson's State ו-Physical State: עלייה = שלילי (אדום), ירידה = חיובי (ירוק)
+    """
+    if mood_field in ["Parkinson's State", "Physical State"]:
+        # היפוך הצבעים - ירידה במצב הפרקינסון או הפיזי היא חיובית
+        return effect < 0, effect > 0
+    else:
+        # השארת הצבעים כמו שהם - עלייה במצב הרוח היא חיובית
+        return effect > 0, effect < 0
+
 def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
@@ -1070,23 +1084,31 @@ def activity_analysis_summary(mood_field):
         else:
             label = feature_value
 
+        # קביעת כיוון והצבע לפי סוג שדה המצב
+        is_positive, is_negative = determine_colors(effect, mood_field)
+
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif effect > 0:
+        elif is_positive:  # השתמש בתנאי החדש במקום effect > 0
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
+                # עדכון הטקסט - כיוון עלייה/ירידה תלוי בסוג השדה
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🟢 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 green_detailed_insights.append(line)
             else:
-                line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 green_insights.append(line)
-        else:
+        else:  # is_negative
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line = f"🔴 **{label}** decreases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🔴 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 red_detailed_insights.append(line)
             else:
-                line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 red_insights.append(line)
 
     # שילוב לפי סדר עדיפות
@@ -1153,23 +1175,30 @@ def medication_analysis_summary(mood_field):
         else:
             label = feature_value
         
+        # קביעת כיוון והצבע לפי סוג שדה המצב
+        is_positive, is_negative = determine_colors(effect, mood_field)
+        
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif effect > 0:
+        elif is_positive:  # השתמש בתנאי החדש במקום effect > 0
             if feature_type in ["time_window", "medication_sequence"]:
-                line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🟢 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 green_detailed_insights.append(line)
             else:
-                line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 green_insights.append(line)
-        else:
+        else:  # is_negative
             if feature_type in ["time_window", "medication_sequence"]:
-                line = f"🔴 **{label}** decreases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🔴 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 red_detailed_insights.append(line)
             else:
-                line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
                 red_insights.append(line)
     
     # שילוב לפי סדר עדיפות
@@ -1184,7 +1213,7 @@ def medication_analysis_summary(mood_field):
     combined_insights = pattern_insights + detailed_insights
     
     return combined_insights
-    
+
 def nutrition_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
@@ -1273,21 +1302,24 @@ def nutrition_analysis_summary(mood_field):
 
         effect_str = f"{abs(diff):.1f}"
         
+        # קביעת כיוון והצבע לפי סוג שדה המצב
+        is_positive, is_negative = determine_colors(diff, mood_field)
+        
         if abs(diff) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif diff > 0:
-            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+        elif is_positive:  # השתמש בתנאי החדש במקום diff > 0
+            direction = "increases" if diff > 0 else "decreases"
+            line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
-        else:
-            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+        else:  # is_negative
+            direction = "increases" if diff > 0 else "decreases"
+            line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
 
     combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
     
     # נוסיף ניתוח מתקדם של מזונות ספציפיים
-    food_insights = []
-    
     try:
         # ניתוח מזונות ספציפיים (אם יש לפחות 3 דוגמאות)
         common_foods = df['food'].value_counts()
@@ -1310,11 +1342,16 @@ def nutrition_analysis_summary(mood_field):
                     if abs(effect) >= 0.1:
                         effect_str = f"{abs(effect):.1f}"
                         
-                        if effect > 0:
-                            line = f"🟢 **{food}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+                        # קביעת כיוון והצבע לפי סוג שדה המצב
+                        is_food_positive, is_food_negative = determine_colors(effect, mood_field)
+                        
+                        if is_food_positive:  # השתמש בתנאי החדש במקום effect > 0
+                            direction = "increases" if effect > 0 else "decreases"
+                            line = f"🟢 **{food}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
                             green_food_insights.append(line)
-                        else:
-                            line = f"🔴 **{food}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+                        else:  # is_food_negative
+                            direction = "increases" if effect > 0 else "decreases"
+                            line = f"🔴 **{food}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
                             red_food_insights.append(line)
             
             if green_food_insights or red_food_insights:
@@ -1363,15 +1400,20 @@ def symptom_analysis_summary(mood_field):
         # התווית היא שם הסימפטום בלי "type_"
         label = feature_value
         
+        # קביעת כיוון והצבע לפי סוג שדה המצב
+        is_positive, is_negative = determine_colors(effect, mood_field)
+        
         # קביעת כיוון ותו
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif effect > 0:
-            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+        elif is_positive:  # השתמש בתנאי החדש במקום effect > 0
+            direction = "increases" if effect > 0 else "decreases"
+            line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
-        else:
-            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+        else:  # is_negative
+            direction = "increases" if effect > 0 else "decreases"
+            line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
     
     # שילוב לפי סדר עדיפות
