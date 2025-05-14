@@ -1407,7 +1407,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect = adjust_effect_for_field(effect, mood_field)
+        adjusted_effect = adjust_effect_for_field(effect, mood_field)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
 
         # קביעת הכותרת/תווית להצגה
@@ -1493,7 +1493,7 @@ def medication_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect = adjust_effect_for_field(effect, mood_field)
+        adjusted_effect = adjust_effect_for_field(effect, mood_field)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
@@ -1682,7 +1682,7 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect = adjust_effect_for_field(effect, mood_field)
+        adjusted_effect = adjust_effect_for_field(effect, mood_field)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום בלי "type_"
