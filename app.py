@@ -1019,6 +1019,7 @@ def analyze_symptom_patterns(data, mood_field):
 def nutrition_analysis_summary(mood_field):
     """
     ניתוח השפעת התזונה על מצב הרוח/פרקינסון באמצעות רגרסיה לינארית
+    עם הפרדה בין ערכים תזונתיים בסיסיים למאכלים ספציפיים
     """
     if not translated_data_global:
         return "Please upload and process data first."
@@ -1133,19 +1134,20 @@ def nutrition_analysis_summary(mood_field):
                         "effect": round(coef, 2)
                     })
         
-        # מיזוג התוצאות ומיון
-        result = nutrient_result + food_result
-        result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
+        # מיון התוצאות של כל קבוצה בנפרד לפי גודל ההשפעה (מוחלט)
+        nutrient_result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
+        food_result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
         
-        # הכנת הסיכום
+        # הכנת הסיכום עבור רכיבים תזונתיים
         mood_field_lower = mood_field.lower()
         header = f"## 🍽️ **Nutrition impact on {mood_field}**\n\n"
-        green_insights = []
-        red_insights = []
-        neutral_insights = []
+        
+        # רכיבים תזונתיים
+        nutrient_green = []
+        nutrient_red = []
+        nutrient_neutral = []
 
-        for item in result:
-            feature_type = item.get("feature_type", "")
+        for item in nutrient_result:
             feature_value = item.get("feature_value", "")
             effect = item.get("effect")
             effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
@@ -1155,26 +1157,58 @@ def nutrition_analysis_summary(mood_field):
             
             if abs(effect) < 0.05:
                 line = f"⚫ **{feature_value}**: no significant impact\n\n"
-                neutral_insights.append(line)
+                nutrient_neutral.append(line)
             elif is_positive:
                 direction = "increases" if effect > 0 else "decreases"
                 line = f"🟢 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                green_insights.append(line)
+                nutrient_green.append(line)
             else:  # is_negative
                 direction = "increases" if effect > 0 else "decreases"
                 line = f"🔴 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                red_insights.append(line)
+                nutrient_red.append(line)
 
-        combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
+        # רק הערכים התזונתיים בחלק הבסיסי
+        nutrient_insights = header + "".join(nutrient_green + nutrient_red + nutrient_neutral)
         
-        if combined_insights.strip() == f"## 🍽️ **Nutrition impact on {mood_field}**":
-            return "No significant nutrient patterns found."
+        # חלק מפורט עבור מזונות ספציפיים
+        food_insights = ""
+        if food_result:
+            food_green = []
+            food_red = []
+            food_neutral = []
+            
+            for item in food_result:
+                feature_value = item.get("feature_value", "")
+                effect = item.get("effect")
+                effect_str = f"{abs(effect):.1f}"
+                
+                is_positive, is_negative = determine_colors(effect, mood_field)
+                
+                if abs(effect) < 0.05:
+                    line = f"⚫ **{feature_value}**: no significant impact\n\n"
+                    food_neutral.append(line)
+                elif is_positive:
+                    direction = "increases" if effect > 0 else "decreases"
+                    line = f"🟢 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
+                    food_green.append(line)
+                else:  # is_negative
+                    direction = "increases" if effect > 0 else "decreases"
+                    line = f"🔴 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
+                    food_red.append(line)
+            
+            # הוספת כותרת לחלק המפורט
+            food_insights = "\n## Detailed Food Patterns\n\n" + "".join(food_green + food_red + food_neutral)
+        
+        # שילוב כל החלקים
+        combined_insights = nutrient_insights + food_insights
+        
+        if nutrient_insights.strip() == header.strip() and not food_insights:
+            return "No significant nutrient or food patterns found."
 
         return combined_insights
         
     except Exception as e:
         return f"Error in nutrition analysis: {str(e)}"
-
 # פונקציה לקביעת הצבעים לפי סוג שדה המצב
 def determine_colors(effect, mood_field):
     """
