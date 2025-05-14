@@ -321,8 +321,6 @@ def upload_and_process(file_obj):
         return None, f"❌ Error processing: {str(e)}"
 
 # --- עזר: הכנת הדאטה פריים ---
-
-
 def prepare_medication_and_mood_data(data, mood_field):
     """
     פונקציה מעודכנת להכנת הנתונים - בודקת גם את השדה 'medicines' וגם 'medications'
@@ -389,12 +387,7 @@ def prepare_medication_and_mood_data(data, mood_field):
     
     return medication_df, mood_df
 
-
-
-
-from sklearn.linear_model import LinearRegression
-
-# פונקציות ניתוח מתקדמות
+# פונקציות ניתוח מתקדמות - עם רגרסיה לינארית
 def analyze_activity_patterns(data, mood_field):
     if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
@@ -490,153 +483,120 @@ def analyze_activity_patterns(data, mood_field):
                 "effect": round(coef, 2)
             })
 
-        # ===== ניתוח מפורט נוסף: השפעות של משך זמן ספציפי =====
+        # ===== רגרסיה לינארית לניתוחים מפורטים =====
         try:
-            # יצירת קטגוריות משך זמן
-            df["duration_category"] = pd.cut(
-                df["duration"].astype(float),
-                bins=[0, 30, 60, float('inf')],
-                labels=["short", "medium", "long"]
-            )
+            # יצירת משתנים דמי למשך זמן
+            df["duration_short"] = (df["duration"] < 30).astype(int)
+            df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
+            df["duration_long"] = (df["duration"] >= 60).astype(int)
             
-            # מיפוי תיאורים
-            duration_labels = {
-                "short": "less than 30 minutes",
-                "medium": "between 30-60 minutes",
-                "long": "more than 60 minutes"
-            }
-            
-            # ניתוח לכל סוג פעילות, עם חלוקה למשך זמן
-            activity_duration_insights = []
-            
+            # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
             for activity in df["activity_name"].unique():
-                activity_data = df[df["activity_name"] == activity]
+                activity_df = df[df["activity_name"] == activity].copy()
                 
-                # המשך רק אם יש מספיק נתונים
-                if len(activity_data) >= 3:
-                    overall_avg = activity_data["mood_after"].mean()
-                    
-                    # בדיקת השפעות משך זמן שונה
-                    for duration_cat in ["short", "medium", "long"]:
-                        duration_data = activity_data[activity_data["duration_category"] == duration_cat]
+                # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
+                if len(activity_df) >= 3:
+                    # ניתוח לפי משך זמן
+                    if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
+                        # יצירת רגרסיה לינארית עם משתני משך זמן
+                        X_duration = activity_df[["duration_short", "duration_medium", "duration_long"]]
+                        y_duration = activity_df["mood_after"]
                         
-                        # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
-                        if len(duration_data) >= 2:
-                            avg_mood = duration_data["mood_after"].mean()
-                            effect = avg_mood - overall_avg
+                        try:
+                            duration_model = LinearRegression()
+                            duration_model.fit(X_duration, y_duration)
                             
-                            # בדוק אם ההשפעה משמעותית
-                            if abs(effect) >= 0.1:
-                                activity_duration_insights.append({
-                                    "activity": activity,
-                                    "duration_desc": duration_labels[duration_cat],
-                                    "effect": effect,
-                                    "avg_mood": avg_mood,
-                                    "count": len(duration_data)
-                                })
-            
-            # ניתוח השפעות של עצימות ספציפית
-            activity_intensity_insights = []
-            
-            for activity in df["activity_name"].unique():
-                activity_data = df[df["activity_name"] == activity]
-                
-                # המשך רק אם יש מספיק נתונים
-                if len(activity_data) >= 3:
-                    overall_avg = activity_data["mood_after"].mean()
-                    
-                    # בדיקת השפעות עצימות שונה
-                    for intensity in activity_data["intensity"].unique():
-                        intensity_data = activity_data[activity_data["intensity"] == intensity]
-                        
-                        # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
-                        if len(intensity_data) >= 2:
-                            avg_mood = intensity_data["mood_after"].mean()
-                            effect = avg_mood - overall_avg
-                            
-                            # בדוק אם ההשפעה משמעותית
-                            if abs(effect) >= 0.1:
-                                activity_intensity_insights.append({
-                                    "activity": activity,
-                                    "intensity": intensity,
-                                    "effect": effect,
-                                    "avg_mood": avg_mood,
-                                    "count": len(intensity_data)
-                                })
-            
-            # שילוב של משך זמן ועצימות
-            activity_complex_insights = []
-            
-            for activity in df["activity_name"].unique():
-                activity_data = df[df["activity_name"] == activity]
-                
-                # המשך רק אם יש מספיק נתונים
-                if len(activity_data) >= 4:
-                    overall_avg = activity_data["mood_after"].mean()
-                    
-                    # בדיקת שילובים של משך ועצימות
-                    for duration_cat in ["short", "medium", "long"]:
-                        for intensity in activity_data["intensity"].unique():
-                            combo_data = activity_data[
-                                (activity_data["duration_category"] == duration_cat) & 
-                                (activity_data["intensity"] == intensity)
-                            ]
-                            
-                            # בדוק שיש לפחות 2 מופעים (דפוס חוזר)
-                            if len(combo_data) >= 2:
-                                avg_mood = combo_data["mood_after"].mean()
-                                effect = avg_mood - overall_avg
-                                
-                                # בדוק אם ההשפעה משמעותית
-                                if abs(effect) >= 0.1:
-                                    activity_complex_insights.append({
-                                        "activity": activity,
-                                        "duration_desc": duration_labels[duration_cat],
-                                        "intensity": intensity,
-                                        "effect": effect,
-                                        "avg_mood": avg_mood,
-                                        "count": len(combo_data)
+                            # חילוץ המקדמים
+                            duration_labels = ["short", "medium", "long"]
+                            for i, coef in enumerate(duration_model.coef_):
+                                # רק אם המקדם משמעותי
+                                if abs(coef) >= 0.2:
+                                    duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
+                                    result.append({
+                                        "feature_type": "detailed_duration",
+                                        "feature_value": f"{activity} {duration_desc}",
+                                        "effect": round(coef, 2)
                                     })
-            
-            # הוספת התובנות המפורטות לתוצאה
-            for insight in activity_duration_insights:
-                effect = insight["effect"]
-                if abs(effect) >= 0.2:  # מציג רק השפעות משמעותיות
-                    direction = "increases" if effect > 0 else "decreases"
-                    effect_size = abs(round(effect, 1))
+                        except:
+                            # במקרה של בעיה, המשך לניתוח הבא
+                            pass
                     
-                    result.append({
-                        "feature_type": "detailed_duration",
-                        "feature_value": f"{insight['activity']} {insight['duration_desc']}",
-                        "effect": effect if effect > 0 else -effect_size  # שומר על פורמט עקבי
-                    })
-            
-            for insight in activity_intensity_insights:
-                effect = insight["effect"]
-                if abs(effect) >= 0.2:  # מציג רק השפעות משמעותיות
-                    direction = "increases" if effect > 0 else "decreases"
-                    effect_size = abs(round(effect, 1))
+                    # ניתוח לפי עצימות
+                    if len(activity_df["intensity"].unique()) > 1:
+                        try:
+                            # יצירת משתנים דמי לעצימות
+                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
+                            
+                            # מיזוג עם נתוני המצב רוח
+                            intensity_data = pd.concat([intensity_dummies, activity_df["mood_after"]], axis=1)
+                            
+                            # רגרסיה לינארית
+                            X_intensity = intensity_data.drop("mood_after", axis=1)
+                            y_intensity = intensity_data["mood_after"]
+                            
+                            intensity_model = LinearRegression()
+                            intensity_model.fit(X_intensity, y_intensity)
+                            
+                            # חילוץ המקדמים
+                            for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
+                                # רק אם המקדם משמעותי
+                                if abs(coef) >= 0.2:
+                                    intensity_value = intensity_name.split("_")[-1]
+                                    result.append({
+                                        "feature_type": "detailed_intensity",
+                                        "feature_value": f"{activity} with {intensity_value} intensity",
+                                        "effect": round(coef, 2)
+                                    })
+                        except:
+                            # במקרה של בעיה, המשך לניתוח הבא
+                            pass
                     
-                    result.append({
-                        "feature_type": "detailed_intensity",
-                        "feature_value": f"{insight['activity']} with {insight['intensity']} intensity",
-                        "effect": effect if effect > 0 else -effect_size  # שומר על פורמט עקבי
-                    })
-            
-            for insight in activity_complex_insights:
-                effect = insight["effect"]
-                if abs(effect) >= 0.2:  # מציג רק השפעות משמעותיות
-                    direction = "increases" if effect > 0 else "decreases"
-                    effect_size = abs(round(effect, 1))
-                    
-                    result.append({
-                        "feature_type": "detailed_combo",
-                        "feature_value": f"{insight['activity']} {insight['duration_desc']} with {insight['intensity']} intensity",
-                        "effect": effect if effect > 0 else -effect_size  # שומר על פורמט עקבי
-                    })
+                    # ניתוח משולב של משך זמן ועצימות
+                    if len(activity_df) >= 4 and len(activity_df["intensity"].unique()) > 1:
+                        try:
+                            # יצירת משתני אינטראקציה בין משך זמן ועצימות
+                            combined_features = pd.DataFrame()
+                            
+                            # יצירת משתנים דמי לעצימות
+                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
+                            
+                            # יצירת אינטראקציות
+                            for duration_type in ["duration_short", "duration_medium", "duration_long"]:
+                                for intensity_col in intensity_dummies.columns:
+                                    col_name = f"{duration_type}_{intensity_col}"
+                                    combined_features[col_name] = activity_df[duration_type] * intensity_dummies[intensity_col]
+                            
+                            # רגרסיה לינארית אם יש מספיק משתנים
+                            if combined_features.shape[1] > 0:
+                                X_combined = combined_features
+                                y_combined = activity_df["mood_after"]
+                                
+                                combined_model = LinearRegression()
+                                combined_model.fit(X_combined, y_combined)
+                                
+                                # חילוץ המקדמים המשמעותיים
+                                for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
+                                    if abs(coef) >= 0.2:
+                                        # פירוק שם התכונה
+                                        parts = feature_name.split("_")
+                                        duration_type = parts[1]  # short, medium, long
+                                        intensity_value = parts[-1]  # ערך העצימות
+                                        
+                                        # הגדרת תיאור משך הזמן
+                                        duration_desc = "less than 30 minutes" if duration_type == "short" else "between 30-60 minutes" if duration_type == "medium" else "more than 60 minutes"
+                                        
+                                        result.append({
+                                            "feature_type": "detailed_combo",
+                                            "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
+                                            "effect": round(coef, 2)
+                                        })
+                        except:
+                            # במקרה של בעיה, המשך
+                            pass
         
         except Exception as e:
             # במקרה של שגיאה, המשך עם התוצאות הקיימות
+            print(f"Error in detailed activity analysis: {str(e)}")
             pass
 
         # מיון התוצאות לפי גודל ההשפעה (מוחלט)
@@ -645,6 +605,7 @@ def analyze_activity_patterns(data, mood_field):
         return result
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
+
 def analyze_medication_patterns(data, mood_field):
     """
     ניתוח דפוסי תרופות והשפעתן על מצב הרוח/פרקינסון באמצעות רגרסיה לינארית
@@ -804,45 +765,48 @@ def analyze_medication_patterns(data, mood_field):
                 "effect": round(coef, 2)
             })
 
-        # ניתוח השפעת מרווחי זמן - מקל בדרישות
+        # ניתוח השפעת מרווחי זמן - עם רגרסיה לינארית
         if "time_diff_hours" in df.columns and len(df) >= 4:
             try:
-                # יוצרים קטגוריות של חלונות זמן
-                df["time_window"] = pd.cut(
-                    df["time_diff_hours"],
-                    bins=[0, 1, 2, 4, float('inf')],
-                    labels=["0-1 hour", "1-2 hours", "2-4 hours", "4+ hours"]
-                )
+                # יצירת קטגוריות של חלונות זמן
+                df["time_0_1"] = (df["time_diff_hours"] <= 1).astype(int)
+                df["time_1_2"] = ((df["time_diff_hours"] > 1) & (df["time_diff_hours"] <= 2)).astype(int)
+                df["time_2_4"] = ((df["time_diff_hours"] > 2) & (df["time_diff_hours"] <= 4)).astype(int)
+                df["time_4_plus"] = (df["time_diff_hours"] > 4).astype(int)
                 
                 # נבדוק את ההשפעה של כל תרופה בחלונות זמן שונים
                 for med in df["medication_name"].unique():
-                    med_data = df[df["medication_name"] == med]
+                    med_data = df[df["medication_name"] == med].copy()
                     
                     # שינוי כאן: מינימום 2 במקום 3
                     if len(med_data) >= 2:
-                        overall_avg = med_data["mood_after"].mean()
+                        # רגרסיה לינארית על חלונות הזמן
+                        X_time = med_data[["time_0_1", "time_1_2", "time_2_4", "time_4_plus"]]
+                        y_time = med_data["mood_after"]
                         
-                        # בדיקת השפעות חלונות זמן שונים
-                        for window in ["0-1 hour", "1-2 hours", "2-4 hours", "4+ hours"]:
-                            window_data = med_data[med_data["time_window"] == window]
-                            
-                            # בדוק שיש לפחות 1 מופע (מקל אף יותר)
-                            if len(window_data) >= 1:
-                                avg_mood = window_data["mood_after"].mean()
-                                effect = avg_mood - overall_avg
+                        # בדוק שיש שונות בנתונים
+                        if X_time.std().sum() > 0:
+                            try:
+                                time_model = LinearRegression()
+                                time_model.fit(X_time, y_time)
                                 
-                                # בדוק אם ההשפעה משמעותית (מקל גם כאן)
-                                if abs(effect) >= 0.1:
-                                    result.append({
-                                        "feature_type": "time_window",
-                                        "feature_value": f"{med} within {window}",
-                                        "effect": round(effect, 2)
-                                    })
+                                # חילוץ המקדמים
+                                time_windows = ["0-1 hour", "1-2 hours", "2-4 hours", "4+ hours"]
+                                for i, coef in enumerate(time_model.coef_):
+                                    # בדוק אם ההשפעה משמעותית
+                                    if abs(coef) >= 0.1:
+                                        result.append({
+                                            "feature_type": "time_window",
+                                            "feature_value": f"{med} within {time_windows[i]}",
+                                            "effect": round(coef, 2)
+                                        })
+                            except:
+                                pass
             except Exception as e:
                 print(f"Error in time window analysis: {str(e)}")
                 pass
 
-        # ניתוח רצפי תרופות - מקל בדרישות גם כאן
+        # ניתוח רצפי תרופות - עם רגרסיה לינארית
         try:
             # ארגון התרופות לפי תאריך
             meds_by_date = {}
@@ -863,45 +827,50 @@ def analyze_medication_patterns(data, mood_field):
                     # מיין לפי זמן
                     sorted_meds = sorted(meds, key=lambda x: x["time"])
                     
-                    # בדוק רצפים של שתי תרופות
+                    # יצירת רצפים
+                    sequences = []
                     for i in range(len(sorted_meds) - 1):
                         first = sorted_meds[i]["name"]
                         second = sorted_meds[i + 1]["name"]
-                        sequence = f"{first} → {second}"
-                        
-                        # מצא דיווחים על מצב רוח לאחר הרצף
-                        second_time = sorted_meds[i + 1]["time"]
-                        moods_after = mood_df[mood_df["date"] > second_time]
-                        same_day_end = pd.Timestamp(date + " 23:59:59")
-                        same_day_moods = moods_after[moods_after["date"] <= same_day_end]
-                        
-                        if not same_day_moods.empty:
-                            avg_mood = same_day_moods["severity"].mean()
+                        sequences.append(f"{first} → {second}")
+                    
+                    # מצא דיווחים על מצב רוח לאחר הרצף
+                    last_med_time = sorted_meds[-1]["time"]
+                    moods_after = mood_df[mood_df["date"] > last_med_time]
+                    same_day_end = pd.Timestamp(date + " 23:59:59")
+                    same_day_moods = moods_after[moods_after["date"] <= same_day_end]
+                    
+                    if not same_day_moods.empty:
+                        avg_mood = same_day_moods["severity"].mean()
+                        for sequence in sequences:
                             sequence_data.append({
                                 "sequence": sequence,
                                 "mood": avg_mood,
                                 "date": date
                             })
             
-            # בדוק אם יש רצפים שמופיעים לפחות פעם אחת (מקל מאוד)
-            if sequence_data:
+            # רגרסיה לינארית על רצפי תרופות
+            if len(sequence_data) >= 2:  # מינימום 2 תצפיות
                 seq_df = pd.DataFrame(sequence_data)
-                seq_counts = seq_df["sequence"].value_counts()
-                common_sequences = seq_counts[seq_counts >= 1].index.tolist()
                 
-                for seq in common_sequences:
-                    seq_mood_avg = seq_df[seq_df["sequence"] == seq]["mood"].mean()
-                    # נשווה לממוצע הכללי
-                    general_avg = seq_df["mood"].mean()
-                    effect = seq_mood_avg - general_avg
+                # בדוק אם יש מספיק רצפים שונים
+                if len(seq_df["sequence"].unique()) >= 2:
+                    # יצירת משתנים דמי לרצפים
+                    X_seq = pd.get_dummies(seq_df["sequence"], drop_first=False)
+                    y_seq = seq_df["mood"]
                     
-                    # מקל גם בהשפעה המינימלית
-                    if abs(effect) >= 0.1:
-                        result.append({
-                            "feature_type": "medication_sequence",
-                            "feature_value": seq,
-                            "effect": round(effect, 2)
-                        })
+                    # רגרסיה לינארית
+                    seq_model = LinearRegression()
+                    seq_model.fit(X_seq, y_seq)
+                    
+                    # חילוץ המקדמים
+                    for seq_name, coef in zip(X_seq.columns, seq_model.coef_):
+                        if abs(coef) >= 0.1:  # רק מקדמים משמעותיים
+                            result.append({
+                                "feature_type": "medication_sequence",
+                                "feature_value": seq_name,
+                                "effect": round(coef, 2)
+                            })
         except Exception as e:
             print(f"Error in medication sequence analysis: {str(e)}")
             pass
@@ -911,7 +880,8 @@ def analyze_medication_patterns(data, mood_field):
 
         return result
     except Exception as e:
-        return f"Error in medication pattern analysis: {str(e)}"# פונקציות ניתוח עבור ממשק המשתמש
+        return f"Error in medication pattern analysis: {str(e)}"
+
 def analyze_symptom_patterns(data, mood_field):
     """
     ניתוח דפוסי סימפטומים והשפעתם על מצב הרוח באמצעות רגרסיה לינארית
@@ -974,48 +944,70 @@ def analyze_symptom_patterns(data, mood_field):
         symptom_df = pd.DataFrame(symptom_data)
         mood_df = pd.DataFrame(mood_data)
 
-        # במקום לעשות רגרסיה לינארית מלאה, נעשה ניתוח פשוט יותר על כל סימפטום בנפרד
-        result = []
+        # נבנה דאטה פריים עם תאריכים ומצבי רוח
+        date_to_mood = {}
+        for _, row in mood_df.iterrows():
+            date_str = row["date"].date().isoformat()
+            if date_str not in date_to_mood:
+                date_to_mood[date_str] = []
+            date_to_mood[date_str].append(row["severity"])
         
-        # נמצא את כל סוגי הסימפטומים הייחודיים
+        # ממוצע מצב רוח לכל יום
+        daily_mood = {date: sum(moods)/len(moods) for date, moods in date_to_mood.items()}
+        
+        # נכין נתונים לרגרסיה לינארית - עבור כל יום, נציין אם היה כל סימפטום
         symptom_types = symptom_df["symptom_type"].unique()
         
-        for symptom_type in symptom_types:
-            # נמצא את כל התאריכים עם הסימפטום הזה
-            symptom_dates = symptom_df[symptom_df["symptom_type"] == symptom_type]["date"].dt.date.unique()
+        regression_data = []
+        for date_str, avg_mood in daily_mood.items():
+            date_obj = pd.Timestamp(date_str).date()
             
-            # נמצא את מצב הרוח הממוצע בימים עם הסימפטום
-            symptom_day_moods = []
-            for date in symptom_dates:
-                day_moods = mood_df[mood_df["date"].dt.date == date]["severity"]
-                if not day_moods.empty:
-                    symptom_day_moods.append(day_moods.mean())
+            # מצא את כל הסימפטומים של היום הזה
+            day_symptoms = symptom_df[symptom_df["date"].dt.date == date_obj]
             
-            # נחשב את הממוצע של מצב הרוח בימים עם הסימפטום
-            if len(symptom_day_moods) >= 2:  # לפחות 2 תצפיות
-                symptom_avg_mood = sum(symptom_day_moods) / len(symptom_day_moods)
-                
-                # נחשב את הממוצע של מצב הרוח בימים ללא הסימפטום
-                non_symptom_dates = [d for d in mood_df["date"].dt.date.unique() if d not in symptom_dates]
-                non_symptom_day_moods = []
-                for date in non_symptom_dates:
-                    day_moods = mood_df[mood_df["date"].dt.date == date]["severity"]
-                    if not day_moods.empty:
-                        non_symptom_day_moods.append(day_moods.mean())
-                
-                # חישוב ההשפעה רק אם יש מספיק נתונים לימים ללא הסימפטום
-                if len(non_symptom_day_moods) >= 2:
-                    non_symptom_avg_mood = sum(non_symptom_day_moods) / len(non_symptom_day_moods)
-                    
-                    # ההשפעה היא ההפרש בין מצב הרוח הממוצע עם וללא הסימפטום
-                    effect = symptom_avg_mood - non_symptom_avg_mood
-                    
-                    result.append({
-                        "feature_type": "symptom_type",
-                        "feature_value": symptom_type,
-                        "effect": round(effect, 2),
-                        "count": len(symptom_day_moods)
-                    })
+            # יצירת רשומה עם משתנים דמי לכל סימפטום
+            record = {"date": date_str, "mood": avg_mood}
+            
+            for symptom in symptom_types:
+                # בדוק אם הסימפטום הזה דווח ביום זה
+                has_symptom = (day_symptoms["symptom_type"] == symptom).any()
+                record[f"symptom_{symptom}"] = int(has_symptom)
+            
+            regression_data.append(record)
+        
+        # בדוק שיש מספיק נתונים
+        if len(regression_data) < 3:
+            return "Not enough daily records for symptom analysis."
+            
+        # יצירת דאטה פריים
+        reg_df = pd.DataFrame(regression_data)
+        
+        # הכנת נתונים לרגרסיה
+        X_cols = [col for col in reg_df.columns if col.startswith("symptom_")]
+        
+        # בדוק שיש לפחות 2 סימפטומים שונים
+        if len(X_cols) < 2:
+            return "Not enough different symptoms for analysis."
+            
+        X = reg_df[X_cols]
+        y = reg_df["mood"]
+        
+        # רגרסיה לינארית
+        model = LinearRegression()
+        model.fit(X, y)
+        
+        # חילוץ המקדמים
+        result = []
+        for symptom_col, coef in zip(X_cols, model.coef_):
+            # הוצאת שם הסימפטום
+            symptom_name = symptom_col.replace("symptom_", "")
+            
+            result.append({
+                "feature_type": "symptom_type",
+                "feature_value": symptom_name,
+                "effect": round(coef, 2),
+                "count": X[symptom_col].sum()  # מספר הימים עם הסימפטום
+            })
         
         # מיון התוצאות לפי גודל ההשפעה (מוחלט)
         result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
@@ -1024,7 +1016,166 @@ def analyze_symptom_patterns(data, mood_field):
     except Exception as e:
         return f"Error in symptom pattern analysis: {str(e)}"
 
-# פונקציה חדשה להגדרת הצבעים לפי סוג שדה המצב
+def nutrition_analysis_summary(mood_field):
+    """
+    ניתוח השפעת התזונה על מצב הרוח/פרקינסון באמצעות רגרסיה לינארית
+    """
+    if not translated_data_global:
+        return "Please upload and process data first."
+    
+    try:
+        nutrition_df = pd.DataFrame([
+            {"date": pd.to_datetime(item["date"]), "item": item}
+            for item in translated_data_global.get("nutritions", [])
+            if "date" in item
+        ])
+
+        mood_df = pd.DataFrame([
+            {"date": pd.to_datetime(item["date"]), "value": item["severity"]}
+            for item in translated_data_global.get("symptoms", [])
+            if item.get("type") == mood_field and "date" in item and "severity" in item
+        ])
+
+        if nutrition_df.empty or mood_df.empty:
+            return "No data available for analysis."
+
+        enriched_data = []
+        for _, food_row in nutrition_df.iterrows():
+            food_time = food_row["date"]
+            food_item = food_row["item"]
+            food_name = food_item.get("foodName", "Unknown")
+            nutrition = food_item.get("nutritionalValues", {})
+
+            # חיפוש מצב רוח אחרי האוכל באותו היום
+            same_day_moods = mood_df[
+                (mood_df["date"] >= food_time) & (mood_df["date"].dt.date == food_time.date())
+            ]
+
+            if same_day_moods.empty:
+                continue
+
+            avg_mood = same_day_moods["value"].mean()
+
+            enriched_data.append({
+                "food": food_name,
+                "mood": avg_mood,
+                **nutrition
+            })
+
+        if not enriched_data:
+            return "No mood data found after meals."
+
+        df = pd.DataFrame(enriched_data)
+
+        nutrients = {
+            "proteins": "Protein",
+            "carbohydrates": "Carbohydrates",
+            "fats": "Fat",
+            "dietaryFiber": "Fiber"
+        }
+
+        # בדיקה אם יש מספיק נתונים
+        if len(df) < 3:
+            return "Not enough nutrition-mood data pairs for analysis."
+            
+        # רגרסיה לינארית עבור רכיבים תזונתיים
+        nutrient_result = []
+        
+        # הכנת הנתונים לרגרסיה
+        nutrient_cols = [col for col in df.columns if col in nutrients.keys()]
+        
+        if not nutrient_cols:
+            return "No nutritional data available."
+            
+        X_nutrients = df[nutrient_cols]
+        y_mood = df["mood"]
+        
+        # בדיקה שיש שונות בנתונים
+        if X_nutrients.std().sum() > 0:
+            # רגרסיה לינארית
+            nutrient_model = LinearRegression()
+            nutrient_model.fit(X_nutrients, y_mood)
+            
+            # חילוץ המקדמים
+            for nutrient_col, coef in zip(nutrient_cols, nutrient_model.coef_):
+                if abs(coef) >= 0.05:  # רק מקדמים משמעותיים
+                    nutrient_result.append({
+                        "feature_type": "nutrient",
+                        "feature_value": nutrients[nutrient_col],
+                        "effect": round(coef, 2)
+                    })
+        
+        # ניתוח מזונות ספציפיים עם רגרסיה לינארית
+        food_result = []
+        
+        # בדיקה אילו מזונות מופיעים מספיק פעמים
+        common_foods = df['food'].value_counts()
+        common_foods = common_foods[common_foods >= 2]
+        
+        if len(common_foods) >= 2:  # צריך לפחות 2 סוגי מזון שונים
+            # יצירת משתנים דמי למזונות
+            food_dummies = pd.get_dummies(df['food'], prefix='food')
+            
+            # רגרסיה לינארית
+            X_foods = food_dummies
+            y_foods = df["mood"]
+            
+            food_model = LinearRegression()
+            food_model.fit(X_foods, y_foods)
+            
+            # חילוץ המקדמים
+            for food_col, coef in zip(X_foods.columns, food_model.coef_):
+                if abs(coef) >= 0.1:  # רק מקדמים משמעותיים
+                    food_name = food_col.replace('food_', '')
+                    food_result.append({
+                        "feature_type": "specific_food",
+                        "feature_value": food_name,
+                        "effect": round(coef, 2)
+                    })
+        
+        # מיזוג התוצאות ומיון
+        result = nutrient_result + food_result
+        result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
+        
+        # הכנת הסיכום
+        mood_field_lower = mood_field.lower()
+        header = f"## 🍽️ **Nutrition impact on {mood_field}**\n\n"
+        green_insights = []
+        red_insights = []
+        neutral_insights = []
+
+        for item in result:
+            feature_type = item.get("feature_type", "")
+            feature_value = item.get("feature_value", "")
+            effect = item.get("effect")
+            effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
+            
+            # קביעת כיוון והצבע לפי סוג שדה המצב
+            is_positive, is_negative = determine_colors(effect, mood_field)
+            
+            if abs(effect) < 0.05:
+                line = f"⚫ **{feature_value}**: no significant impact\n\n"
+                neutral_insights.append(line)
+            elif is_positive:
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🟢 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
+                green_insights.append(line)
+            else:  # is_negative
+                direction = "increases" if effect > 0 else "decreases"
+                line = f"🔴 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
+                red_insights.append(line)
+
+        combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
+        
+        if combined_insights.strip() == f"## 🍽️ **Nutrition impact on {mood_field}**":
+            return "No significant nutrient patterns found."
+
+        return combined_insights
+        
+    except Exception as e:
+        return f"Error in nutrition analysis: {str(e)}"
+
+# פונקציה לקביעת הצבעים לפי סוג שדה המצב
 def determine_colors(effect, mood_field):
     """
     קובע את הצבע והכיוון לפי סוג שדה המצב:
@@ -1131,9 +1282,6 @@ def medication_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     
-    # השתמש בפונקציה המקורית לקבלת תובנות בסיסיות - אבל לא משתמש בהן בתוצאה הסופית
-    medication_df, mood_df = prepare_medication_and_mood_data(translated_data_global, mood_field)
-    
     # ניתוח מתקדם של דפוסים בתרופות
     advanced_analysis = analyze_medication_patterns(translated_data_global, mood_field)
     
@@ -1209,164 +1357,10 @@ def medication_analysis_summary(mood_field):
     if green_detailed_insights or red_detailed_insights:
         detailed_insights = "\n## Detailed Medication Patterns\n\n" + "".join(green_detailed_insights + red_detailed_insights)
     
-    # שלב הכל ביחד - רק ללא basic_insights
+    # שלב הכל ביחד
     combined_insights = pattern_insights + detailed_insights
     
     return combined_insights
-
-def nutrition_analysis_summary(mood_field):
-    if not translated_data_global:
-        return "Please upload and process data first."
-    
-    nutrition_df = pd.DataFrame([
-        {"date": pd.to_datetime(item["date"]), "item": item}
-        for item in translated_data_global.get("nutritions", [])
-        if "date" in item
-    ])
-
-    mood_df = pd.DataFrame([
-        {"date": pd.to_datetime(item["date"]), "value": item["severity"]}
-        for item in translated_data_global.get("symptoms", [])
-        if item.get("type") == mood_field and "date" in item and "severity" in item
-    ])
-
-    if nutrition_df.empty or mood_df.empty:
-        return "No data available for analysis."
-
-    enriched_data = []
-    for _, food_row in nutrition_df.iterrows():
-        food_time = food_row["date"]
-        food_item = food_row["item"]
-        food_name = food_item.get("foodName", "Unknown")
-        nutrition = food_item.get("nutritionalValues", {})
-
-        same_day_moods = mood_df[
-            (mood_df["date"] >= food_time) & (mood_df["date"].dt.date == food_time.date())
-        ]
-
-        if same_day_moods.empty:
-            continue
-
-        avg_mood = same_day_moods["value"].mean()
-
-        enriched_data.append({
-            "food": food_name,
-            "mood": avg_mood,
-            **nutrition
-        })
-
-    if not enriched_data:
-        return "No mood data found after meals."
-
-    df = pd.DataFrame(enriched_data)
-
-    nutrients = {
-        "proteins": "Protein",
-        "carbohydrates": "Carbohydrates",
-        "fats": "Fat",
-        "dietaryFiber": "Fiber"
-    }
-
-    thresholds = {
-        "proteins": 10,
-        "carbohydrates": 20,
-        "fats": 10,
-        "dietaryFiber": 3
-    }
-
-    overall_avg = df["mood"].mean()
-    mood_field_lower = mood_field.lower()
-
-    header = f"## 🍽️ **Nutrition impact on {mood_field}**\n\n"
-    green_insights = []
-    red_insights = []
-    neutral_insights = []
-
-    for key, label in nutrients.items():
-        if key not in df.columns:
-            continue
-
-        threshold = thresholds[key]
-        with_nutrient = df[df[key] >= threshold]
-        without_nutrient = df[df[key] < threshold]
-
-        if len(with_nutrient) < 2 or len(without_nutrient) < 2:
-            continue
-
-        with_avg = with_nutrient["mood"].mean()
-        without_avg = without_nutrient["mood"].mean()
-        diff = round(with_avg - without_avg, 2)
-
-        if abs(diff) < 0.1:
-            continue
-
-        effect_str = f"{abs(diff):.1f}"
-        
-        # קביעת כיוון והצבע לפי סוג שדה המצב
-        is_positive, is_negative = determine_colors(diff, mood_field)
-        
-        if abs(diff) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
-            neutral_insights.append(line)
-        elif is_positive:  # השתמש בתנאי החדש במקום diff > 0
-            direction = "increases" if diff > 0 else "decreases"
-            line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-            green_insights.append(line)
-        else:  # is_negative
-            direction = "increases" if diff > 0 else "decreases"
-            line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-            red_insights.append(line)
-
-    combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
-    
-    # נוסיף ניתוח מתקדם של מזונות ספציפיים
-    try:
-        # ניתוח מזונות ספציפיים (אם יש לפחות 3 דוגמאות)
-        common_foods = df['food'].value_counts()
-        common_foods = common_foods[common_foods >= 2]
-        
-        detailed_insights = ""
-        
-        if len(common_foods) > 0:
-            green_food_insights = []
-            red_food_insights = []
-            
-            for food in common_foods.index:
-                food_data = df[df['food'] == food]
-                food_avg = food_data['mood'].mean()
-                non_food_avg = df[df['food'] != food]['mood'].mean()
-                
-                if len(food_data) >= 2 and len(df[df['food'] != food]) >= 2:
-                    effect = food_avg - non_food_avg
-                    
-                    if abs(effect) >= 0.1:
-                        effect_str = f"{abs(effect):.1f}"
-                        
-                        # קביעת כיוון והצבע לפי סוג שדה המצב
-                        is_food_positive, is_food_negative = determine_colors(effect, mood_field)
-                        
-                        if is_food_positive:  # השתמש בתנאי החדש במקום effect > 0
-                            direction = "increases" if effect > 0 else "decreases"
-                            line = f"🟢 **{food}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                            green_food_insights.append(line)
-                        else:  # is_food_negative
-                            direction = "increases" if effect > 0 else "decreases"
-                            line = f"🔴 **{food}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                            red_food_insights.append(line)
-            
-            if green_food_insights or red_food_insights:
-                detailed_insights = "\n## Detailed Food Patterns\n\n" + "".join(green_food_insights + red_food_insights)
-    
-        combined_insights += detailed_insights
-    except Exception as e:
-        # במקרה של שגיאה, נתעלם מהניתוח המתקדם
-        pass
-    
-    if combined_insights.strip() == f"## 🍽️ **Nutrition impact on {mood_field}**":
-        return "No significant nutrient patterns found."
-
-    return combined_insights
-
 
 def symptom_analysis_summary(mood_field):
     """
