@@ -1207,7 +1207,7 @@ def medication_analysis_summary(mood_field):
     combined_insights = pattern_insights + detailed_insights
     
     return combined_insights
-    
+
 def nutrition_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
@@ -1227,9 +1227,10 @@ def nutrition_analysis_summary(mood_field):
     if nutrition_df.empty or mood_df.empty:
         return "No data available for analysis."
 
-    insights = "🍽️ Nutrition Insights:\n"
-    combined = []
+    header = f"## 🍽️ **Nutrition impact on {mood_field}**\n\n"
+    food_effects = []
 
+    combined = []
     for _, food_row in nutrition_df.iterrows():
         food_time = food_row["date"]
         food_name = food_row["item"].get("foodName", "Unknown")
@@ -1241,20 +1242,17 @@ def nutrition_analysis_summary(mood_field):
             avg_mood = same_day_moods["value"].mean()
             combined.append((food_name, avg_mood))
 
-    if not combined:
-        return insights + "No mood data found after meals."
+    if combined:
+        df = pd.DataFrame(combined, columns=["food", "mood"])
+        grouped = df.groupby("food").agg(["count", "mean"])
+        grouped.columns = ["count", "avg_mood"]
+        grouped = grouped[grouped["count"] >= 2].sort_values("avg_mood", ascending=False)
 
-    df = pd.DataFrame(combined, columns=["food", "mood"])
-    grouped = df.groupby("food").agg(["count", "mean"])
-    grouped.columns = ["count", "avg_mood"]
-    grouped = grouped[grouped["count"] >= 2].sort_values("avg_mood", ascending=False)
+        for food, row in grouped.iterrows():
+            mood_level = round(row["avg_mood"], 1)
+            food_effects.append(f"- After eating {food} ({int(row['count'])} times): average {mood_field} = {mood_level}/5\n")
 
-    for food, row in grouped.iterrows():
-        mood_level = round(row["avg_mood"], 1)
-        insights += f"- After eating {food} ({int(row['count'])} times): average {mood_field} = {mood_level}/5\n"
-    # תובנות לפי רכיבים תזונתיים — בסגנון של "Mood higher by X points when present"
-    insights += f"\n• Nutrient impact on {mood_field}:\n"
-
+    # תובנות לפי רכיבים תזונתיים בפורמט אחיד
     nutrients = {
         "proteins": "Protein",
         "carbohydrates": "Carbohydrates",
@@ -1291,6 +1289,7 @@ def nutrition_analysis_summary(mood_field):
             **nutrition
         })
 
+    nutrient_insights = []
     df = pd.DataFrame(enriched_data)
     for key, label in nutrients.items():
         if key not in df.columns:
@@ -1301,24 +1300,31 @@ def nutrition_analysis_summary(mood_field):
         without_nutrient = df[df[key] < threshold]
 
         if len(with_nutrient) < 2 or len(without_nutrient) < 2:
-            # אם אין מספיק השוואה — דלג
             continue
 
         with_avg = with_nutrient["mood"].mean()
         without_avg = without_nutrient["mood"].mean()
         diff = round(with_avg - without_avg, 2)
 
-        # אם אין הבדל מובהק — לא להציג
         if abs(diff) < 0.1:
             continue
 
-        direction = "higher" if diff > 0 else "lower"
-        insights += f"- {label} ({len(with_nutrient)} occurrences): {mood_field} {direction} by {abs(diff)} points when present\n"
-        insights += f"  (Average {mood_field}: {round(with_avg, 1)}/5 with, {round(without_avg, 1)}/5 without)\n" 
-       
+        emoji = "🟢" if diff > 0 else "🔴"
+        direction = "increases" if diff > 0 else "decreases"
+        effect_str = f"{abs(diff):.1f}"
 
+        nutrient_insights.append(f"{emoji} {label} {direction} {mood_field.lower()} by {effect_str} on average\n")
 
-    return insights
+    result = header
+    if food_effects:
+        result += "### Mood After Specific Foods:\n" + "".join(food_effects) + "\n"
+    if nutrient_insights:
+        result += "### Nutritional Components Impact:\n" + "".join(nutrient_insights)
+
+    if not food_effects and not nutrient_insights:
+        result += "No nutrition patterns found."
+
+    return result
 
 
 def symptom_analysis_summary(mood_field):
