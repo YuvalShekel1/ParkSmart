@@ -1248,7 +1248,10 @@ def nutrition_analysis_summary(mood_field):
     overall_avg = df["mood"].mean()
     mood_field_lower = mood_field.lower()
 
-    insights = f"## 🍽️ Nutrition impact on {mood_field}\n\n"
+    header = f"## 🍽️ **Nutrition impact on {mood_field}**\n\n"
+    green_insights = []
+    red_insights = []
+    neutral_insights = []
 
     for key, label in nutrients.items():
         if key not in df.columns:
@@ -1268,16 +1271,64 @@ def nutrition_analysis_summary(mood_field):
         if abs(diff) < 0.1:
             continue
 
-        emoji = "🟢" if diff > 0 else "🔴"
-        direction = "increases" if diff > 0 else "decreases"
         effect_str = f"{abs(diff):.1f}"
+        
+        if abs(diff) < 0.05:
+            line = f"⚫ **{label}**: no significant impact\n\n"
+            neutral_insights.append(line)
+        elif diff > 0:
+            line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+            green_insights.append(line)
+        else:
+            line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+            red_insights.append(line)
 
-        insights += f"{emoji} {label}: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-
-    if insights.strip() == f"## 🍽️ Nutrition impact on {mood_field}":
+    combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
+    
+    # נוסיף ניתוח מתקדם של מזונות ספציפיים
+    food_insights = []
+    
+    try:
+        # ניתוח מזונות ספציפיים (אם יש לפחות 3 דוגמאות)
+        common_foods = df['food'].value_counts()
+        common_foods = common_foods[common_foods >= 2]
+        
+        detailed_insights = ""
+        
+        if len(common_foods) > 0:
+            green_food_insights = []
+            red_food_insights = []
+            
+            for food in common_foods.index:
+                food_data = df[df['food'] == food]
+                food_avg = food_data['mood'].mean()
+                non_food_avg = df[df['food'] != food]['mood'].mean()
+                
+                if len(food_data) >= 2 and len(df[df['food'] != food]) >= 2:
+                    effect = food_avg - non_food_avg
+                    
+                    if abs(effect) >= 0.1:
+                        effect_str = f"{abs(effect):.1f}"
+                        
+                        if effect > 0:
+                            line = f"🟢 **{food}**: increases {mood_field_lower} by {effect_str} on average\n\n"
+                            green_food_insights.append(line)
+                        else:
+                            line = f"🔴 **{food}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
+                            red_food_insights.append(line)
+            
+            if green_food_insights or red_food_insights:
+                detailed_insights = "\n## Detailed Food Patterns\n\n" + "".join(green_food_insights + red_food_insights)
+    
+        combined_insights += detailed_insights
+    except Exception as e:
+        # במקרה של שגיאה, נתעלם מהניתוח המתקדם
+        pass
+    
+    if combined_insights.strip() == f"## 🍽️ **Nutrition impact on {mood_field}**":
         return "No significant nutrient patterns found."
 
-    return insights
+    return combined_insights
 
 
 def symptom_analysis_summary(mood_field):
