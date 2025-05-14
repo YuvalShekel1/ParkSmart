@@ -248,10 +248,6 @@ def extract_food_nutrition(food_name):
     # השתמש במחשבון ארוחות מורכבות
     return calculate_complex_meal_nutrition(food_name)
 
-
-def is_inverted_scale(mood_field):
-    return mood_field in ["Parkinson's State", "Physical State"]
-
 def upload_and_process(file_obj):
     global translated_data_global, original_full_json
     try:
@@ -1056,9 +1052,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        adjusted_effect = -effect if is_inverted_scale(mood_field) else effect
-        effect_str = f"{abs(adjusted_effect):.1f}"  # עיגול לספרה אחת
-
+        effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
 
         # קביעת הכותרת/תווית להצגה
         if feature_type == "activity_name":
@@ -1080,14 +1074,14 @@ def activity_analysis_summary(mood_field):
         if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif adjusted_effect > 0:
+        elif effect > 0:
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
                 line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
                 green_detailed_insights.append(line)
             else:
                 line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
                 green_insights.append(line)
-        elif adjusted_effect < 0:
+        else:
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
                 line = f"🔴 **{label}** decreases {mood_field_lower} by {effect_str} on average\n\n"
                 red_detailed_insights.append(line)
@@ -1143,9 +1137,7 @@ def medication_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        adjusted_effect = -effect if is_inverted_scale(mood_field) else effect
-        effect_str = f"{abs(adjusted_effect):.1f}"
-
+        effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
         if feature_type == "medication_name":
@@ -1162,17 +1154,17 @@ def medication_analysis_summary(mood_field):
             label = feature_value
         
         # קביעת כיוון ותו
-        if abs(adjusted_effect) < 0.05:
+        if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif adjusted_effect > 0:
+        elif effect > 0:
             if feature_type in ["time_window", "medication_sequence"]:
                 line = f"🟢 **{label}** increases {mood_field_lower} by {effect_str} on average\n\n"
                 green_detailed_insights.append(line)
             else:
                 line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
                 green_insights.append(line)
-        elif adjusted_effect < 0:
+        else:
             if feature_type in ["time_window", "medication_sequence"]:
                 line = f"🔴 **{label}** decreases {mood_field_lower} by {effect_str} on average\n\n"
                 red_detailed_insights.append(line)
@@ -1271,16 +1263,13 @@ def nutrition_analysis_summary(mood_field):
 
         with_avg = with_nutrient["mood"].mean()
         without_avg = without_nutrient["mood"].mean()
-        raw_diff = with_avg - without_avg
-        adjusted_diff = -raw_diff if is_inverted_scale(mood_field) else raw_diff
+        diff = round(with_avg - without_avg, 2)
 
-        if abs(adjusted_diff) < 0.1:
+        if abs(diff) < 0.1:
             continue
 
-        emoji = "🟢" if adjusted_diff > 0 else "🔴"
-        direction = "increases" if adjusted_diff > 0 else "decreases"
-        effect_str = f"{abs(adjusted_diff):.1f}"
-
+        emoji = "🟢" if diff > 0 else "🔴"
+        direction = "increases" if diff > 0 else "decreases"
         effect_str = f"{abs(diff):.1f}"
 
         insights += f"{emoji} {label}: {direction} {mood_field_lower} by {effect_str} on average\n\n"
@@ -1318,20 +1307,19 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        adjusted_effect = -effect if is_inverted_scale(mood_field) else effect
-        effect_str = f"{abs(adjusted_effect):.1f}"
+        effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום בלי "type_"
         label = feature_value
         
         # קביעת כיוון ותו
-        if abs(adjusted_effect) < 0.05:
+        if abs(effect) < 0.05:
             line = f"⚫ **{label}**: no significant impact\n\n"
             neutral_insights.append(line)
-        elif adjusted_effect > 0:
+        elif effect > 0:
             line = f"🟢 **{label}**: increases {mood_field_lower} by {effect_str} on average\n\n"
             green_insights.append(line)
-        elif adjusted_effect < 0:
+        else:
             line = f"🔴 **{label}**: decreases {mood_field_lower} by {effect_str} on average\n\n"
             red_insights.append(line)
     
