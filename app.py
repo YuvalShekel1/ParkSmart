@@ -241,6 +241,14 @@ def translate_value(value, key=None):
     else:
         return value
 
+def adjust_effect_for_field(effect, mood_field):  # 🔴 חדש
+    reverse_fields = ["Physical State", "Parkinson's State"]
+    if mood_field in reverse_fields:
+        return -effect
+    return effect
+
+
+
 def extract_food_nutrition(food_name):
     # קודם בדוק התאמה מדויקת
     if food_name in nutrition_db:
@@ -1281,6 +1289,7 @@ def analyze_symptom_patterns(data, mood_field):
                 continue
                 
             severity = float(item.get("severity", 0))
+            severity = 6 - severity
             symptom_type = item.get("type", "Unknown")
             
             symptom_data.append({
@@ -1385,6 +1394,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
+        effect = adjust_effect_for_field(effect, mood_field)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
 
         # קביעת הכותרת/תווית להצגה
@@ -1470,6 +1480,7 @@ def medication_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
+        effect = adjust_effect_for_field(effect, mood_field)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
@@ -1658,6 +1669,7 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
+        effect = adjust_effect_for_field(effect, mood_field)
         effect_str = f"{abs(effect):.1f}"  # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום בלי "type_"
