@@ -111,12 +111,12 @@ translation_cache = {
     "שחייה": "Swimming",
     "יוגה": "Yoga",
     "אימון כוח": "Strength Training",
-    "אימון טנש": "Tens Training",
-    "אימון טנש קבוצתי": "Group Tens Training",
+    "אימון טנש": "Table Tennis Training",
+    "אימון טנש קבוצתי": "Group Table Tennis Training",
     "משעה 2020 3 משחקים. הפסקה של 15 דקות לפני המשחקים": "From 8:20 PM, 3 games. 15-minute break before the games",
-    "טנש": "Tens",
+    "טנש": "Table Tennis",
     "טאקי": "Taki (card game)",
-    "טורניר טנש": "Tens tournament",
+    "טורניר טנש": "Table Tennis tournament",
     "הרכבת כסאות גינה": "Assembling garden chairs",
     "נסיעה לבית שאן": "Trip to Beit Shean",
     "סיור במוזיאון גולני": "Tour at Golani Museum",
@@ -1479,6 +1479,7 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
+"""
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
 
