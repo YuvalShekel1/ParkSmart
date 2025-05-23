@@ -1462,7 +1462,24 @@ def upload_json(file_obj):
         return None, f"❌ Error: {str(e)}"
 
 # יצירת האפליקציה עם העיצוב החדש
-with gr.Blocks(title="Parkinson's Health Pattern Analysis") as app:
+# הוספת CSS מותאם אישית
+custom_css = """
+.gradio-container {
+    background-color: #f0f8ff !important;
+    font-size: 16px !important;
+}
+button.primary {
+    background-color: #a6cee3 !important;
+    border-color: #a6cee3 !important;
+}
+button.primary:hover {
+    background-color: #8bb8d9 !important;
+    border-color: #8bb8d9 !important;
+}
+.markdown {
+    font-size: 18px !important;
+}
+with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
 
     with gr.Row():
