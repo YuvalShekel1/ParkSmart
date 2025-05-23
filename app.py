@@ -1471,10 +1471,12 @@ custom_css = """
 button.primary {
     background-color: #a6cee3 !important;
     border-color: #a6cee3 !important;
+    color: #000000 !important;
 }
 button.primary:hover {
     background-color: #8bb8d9 !important;
     border-color: #8bb8d9 !important;
+    color: #000000 !important;
 }
 .markdown {
     font-size: 18px !important;
