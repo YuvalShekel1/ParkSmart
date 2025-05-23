@@ -1465,7 +1465,7 @@ def upload_json(file_obj):
 # הוספת CSS מותאם אישית
 custom_css = """
 .gradio-container {
-    background-color: #f0f8ff !important;
+    background-color: #ffffff !important;
     font-size: 16px !important;
 }
 button.primary {
