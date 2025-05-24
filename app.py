@@ -22,7 +22,8 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import mean_squared_error
-
+import plotly.graph_objects as go
+import plotly.express as px
 # סתימת אזהרות
 warnings.filterwarnings('ignore')
 
@@ -1501,7 +1502,11 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as a
     with gr.Tabs():
         with gr.TabItem("🏃 Activity Analysis"):
             activity_button = gr.Button("Analyze Activity Patterns", variant="primary")
-            activity_output = gr.Markdown(label="Activity Insights")
+            with gr.Row():
+             with gr.Column(scale=2):
+              activity_output = gr.Markdown(label="Activity Insights")
+             with gr.Column(scale=1):
+              activity_chart = gr.Plot(label="Activity Impact Chart")
         
         with gr.TabItem("💊 Medication Analysis"):
             medication_button = gr.Button("Analyze Medication Patterns", variant="primary")
@@ -1517,8 +1522,7 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as a
 
     # קישור הפונקציות לכפתורים
     upload_button.click(fn=upload_json, inputs=[file_input], outputs=[processed_file, output_text])
-    activity_button.click(fn=activity_analysis_summary, inputs=[mood_selector], outputs=[activity_output])
-    medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
+    activity_button.click(fn=activity_analysis_summary, inputs=[mood_selector], outputs=[activity_output])    medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
     symptom_button.click(fn=symptom_analysis_summary, inputs=[mood_selector], outputs=[symptom_output])
     nutrition_button.click(fn=nutrition_analysis_summary, inputs=[mood_selector], outputs=[nutrition_output])
 
