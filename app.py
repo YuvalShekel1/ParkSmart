@@ -1522,7 +1522,8 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as a
 
     # קישור הפונקציות לכפתורים
     upload_button.click(fn=upload_json, inputs=[file_input], outputs=[processed_file, output_text])
-    activity_button.click(fn=activity_analysis_summary, inputs=[mood_selector], outputs=[activity_output])    medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
+    activity_button.click(fn=activity_analysis_summary, inputs=[mood_selector], outputs=[activity_output]) 
+    medication_button.click(fn=medication_analysis_summary, inputs=[mood_selector], outputs=[medication_output])
     symptom_button.click(fn=symptom_analysis_summary, inputs=[mood_selector], outputs=[symptom_output])
     nutrition_button.click(fn=nutrition_analysis_summary, inputs=[mood_selector], outputs=[nutrition_output])
 
