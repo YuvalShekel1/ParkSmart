@@ -12,6 +12,9 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
+import requests ##חדש
+import time ##חדש
+from typing import Dict, Optional ## חדש
 from scipy.stats import pearsonr, spearmanr
 from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
@@ -27,6 +30,86 @@ from sklearn.metrics import mean_squared_error
 warnings.filterwarnings('ignore')
 
 translator = Translator()
+##חדש
+# הגדרת API Key - החלף במפתח האמיתי שלך
+API_KEY = "DEMO_KEY"  # החלף ב-API key מ-https://fdc.nal.usda.gov/api-key-signup/
+
+class NutritionAPI:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://api.nal.usda.gov/fdc/v1"
+        self.search_cache = {}
+        
+    def search_food(self, food_name: str, max_results: int = 5) -> list:
+        if food_name.lower() in self.search_cache:
+            return self.search_cache[food_name.lower()]
+            
+        url = f"{self.base_url}/foods/search"
+        params = {
+            "api_key": self.api_key,
+            "query": food_name,
+            "pageSize": max_results,
+            "dataType": ["Foundation", "SR Legacy"]
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            foods = data.get("foods", [])
+            
+            self.search_cache[food_name.lower()] = foods
+            return foods
+            
+        except Exception as e:
+            print(f"שגיאה בחיפוש מזון '{food_name}': {e}")
+            return []
+    
+    def get_food_details(self, fdc_id: int) -> Optional[Dict]:
+        url = f"{self.base_url}/food/{fdc_id}"
+        params = {"api_key": self.api_key}
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"שגיאה בקבלת פרטי מזון {fdc_id}: {e}")
+            return None
+    
+    def extract_nutrition_values(self, food_data: Dict) -> Dict[str, float]:
+        nutrition = {"proteins": 0.0, "fats": 0.0, "carbohydrates": 0.0, "dietaryFiber": 0.0}
+        
+        nutrient_mapping = {203: "proteins", 204: "fats", 205: "carbohydrates", 291: "dietaryFiber"}
+        
+        for nutrient in food_data.get("foodNutrients", []):
+            nutrient_id = nutrient.get("nutrient", {}).get("id")
+            if nutrient_id in nutrient_mapping:
+                amount = nutrient.get("amount", 0)
+                nutrition[nutrient_mapping[nutrient_id]] = round(float(amount or 0), 1)
+        
+        return nutrition
+    
+    def get_nutrition_from_api(self, food_name: str) -> Dict[str, float]:
+        default_nutrition = {"proteins": 0.0, "fats": 0.0, "carbohydrates": 0.0, "dietaryFiber": 0.0}
+        
+        foods = self.search_food(food_name)
+        if not foods:
+            return default_nutrition
+        
+        fdc_id = foods[0].get("fdcId")
+        if not fdc_id:
+            return default_nutrition
+        
+        food_details = self.get_food_details(fdc_id)
+        if not food_details:
+            return default_nutrition
+        
+        return self.extract_nutrition_values(food_details)
+
+# יצירת מופע API
+nutrition_api = NutritionAPI(API_KEY) if API_KEY != "DEMO_KEY" else None
 
 # מילון תרגום מלא
 translation_cache = {
@@ -240,14 +323,46 @@ def translate_value(value, key=None):
         return [translate_value(item) for item in value]
     else:
         return value
-
+##חדש-הוחלף
 def extract_food_nutrition(food_name):
-    # קודם בדוק התאמה מדויקת
+    # קודם בדוק התאמה מדויקת במילון המקומי
     if food_name in nutrition_db:
         return nutrition_db[food_name]
-    # השתמש במחשבון ארוחות מורכבות
+    
+    # אם יש API זמין, נסה לחפש שם
+    if nutrition_api and API_KEY != "DEMO_KEY":
+        try:
+            # תרגום לאנגלית לחיפוש ב-API
+            english_food_name = translate_value(food_name)
+            api_nutrition = nutrition_api.get_nutrition_from_api(english_food_name)
+            
+            # בדיקה אם נמצאו ערכים תקינים
+            if any(v > 0 for v in api_nutrition.values()):
+                # שמירה במילון המקומי לפעם הבאה
+                nutrition_db[food_name] = api_nutrition
+                return api_nutrition
+        except Exception as e:
+            print(f"שגיאה בשימוש ב-API עבור {food_name}: {e}")
+    
+    # אם לא נמצא כלום, נסה את הפונקציה המקורית למזונות מורכבים
     return calculate_complex_meal_nutrition(food_name)
-
+##חדש
+def validate_nutrition_coverage(data):
+    """בודקת אילו מזונות לא נמצאו ערכים תזונתיים עבורם"""
+    unknown_foods = []
+    total_foods = 0
+    
+    for item in data.get("nutritions", []):
+        food_name = item.get("foodName", "")
+        if food_name:
+            total_foods += 1
+            nutrition = item.get("nutritionalValues", {})
+            if all(v == 0 for v in nutrition.values()):
+                unknown_foods.append(food_name)
+    
+    coverage_percent = ((total_foods - len(unknown_foods)) / total_foods * 100) if total_foods > 0 else 0
+    return unknown_foods, coverage_percent
+    
 def upload_and_process(file_obj):
     global translated_data_global, original_full_json
     try:
@@ -310,14 +425,25 @@ def upload_and_process(file_obj):
                 original_full_json[key] = translate_value(section)
 
         translated_data_global = original_full_json
+        
+        # בדיקת כיסוי תזונתי חדש
+        unknown_foods, coverage_percent = validate_nutrition_coverage(translated_data_global)
+        
+        # שמור את הנתונים המעובדים חדש
 
+        
         # שמור את הנתונים המעובדים
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.json').name
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(translated_data_global, f, ensure_ascii=False, indent=2)
 
-        return output_path, "✅ File processed successfully! All nutritional values have been updated and data has been fully translated."
-    except Exception as e:
+        # עדכון הודעת הסטטוס חדש
+        api_status = "🌐 API enabled" if nutrition_api and API_KEY != "DEMO_KEY" else "📚 Local database only"
+        status_message = f"✅ File processed! {api_status}. Nutrition coverage: {coverage_percent:.1f}%"
+        if unknown_foods:
+            status_message += f" ({len(unknown_foods)} foods missing nutrition data)"
+        
+        return output_path, status_message    except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
 # --- עזר: הכנת הדאטה פריים ---
