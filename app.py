@@ -443,7 +443,8 @@ def upload_and_process(file_obj):
         if unknown_foods:
             status_message += f" ({len(unknown_foods)} foods missing nutrition data)"
         
-        return output_path, status_message    except Exception as e:
+        return output_path, status_message
+    except Exception as e:
         return None, f"❌ Error processing: {str(e)}"
 
 # --- עזר: הכנת הדאטה פריים ---
