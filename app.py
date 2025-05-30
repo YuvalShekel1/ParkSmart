@@ -32,7 +32,7 @@ warnings.filterwarnings('ignore')
 translator = Translator()
 ##חדש
 # הגדרת API Key - החלף במפתח האמיתי שלך
-API_KEY = "DEMO_KEY"  # החלף ב-API key מ-https://fdc.nal.usda.gov/api-key-signup/
+API_KEY = "BEQskSWfE4TbgTXy6GjTADB4ON7WX2ajidP3QPBq"  # החלף ב-API key מ-https://fdc.nal.usda.gov/api-key-signup/
 
 class NutritionAPI:
     def __init__(self, api_key: str):
