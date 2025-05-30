@@ -344,7 +344,9 @@ def translate_value(value, key=None):
 def extract_food_nutrition(food_name):
     # קודם בדוק התאמה מדויקת במילון המקומי
     if food_name in nutrition_db:
-        return nutrition_db[food_name]
+    local_nutrition = nutrition_db[food_name]
+    if any(v > 0 for v in local_nutrition.values()):
+        return local_nutrition
     
     # אם יש API זמין, נסה לחפש שם
     if nutrition_api and API_KEY != "DEMO_KEY":
