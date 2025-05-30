@@ -25,6 +25,23 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import mean_squared_error
+##חדש ניסוי
+import requests
+
+api_key = "BEQskSWfE4TbgTXy6GjTADB4ON7WX2ajidP3QPBq"  # אל תשאירי את זה חשוף
+
+url = "https://api.nal.usda.gov/fdc/v1/foods/search"
+params = {
+    "query": "omelette",
+    "pageSize": 1,
+    "api_key": api_key
+}
+
+response = requests.get(url, params=params)
+data = response.json()
+
+from pprint import pprint
+pprint(data)
 
 # סתימת אזהרות
 warnings.filterwarnings('ignore')
