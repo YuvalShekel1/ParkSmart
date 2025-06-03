@@ -198,26 +198,53 @@ def usda_search_food(food_name):
         print(f"USDA search error: {e}")
         return None
 def usda_get_nutrition(fdc_id): #חדש
+    if not USDA_API_KEY:
+        return None
+        
     url = f"https://api.nal.usda.gov/fdc/v1/food/{fdc_id}"
     params = {
         "api_key": USDA_API_KEY
     }
+    
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
-        # חילוץ ערכים נבחרים לפי שם
-        nutrients = {nutrient["name"]: nutrient["value"] for nutrient in data.get("foodNutrients", [])}
+        if "foodNutrients" not in data:
+            return None
 
-        return {
-            "proteins": round(nutrients.get("Protein", 0), 1),
-            "fats": round(nutrients.get("Total lipid (fat)", 0), 1),
-            "carbohydrates": round(nutrients.get("Carbohydrate, by difference", 0), 1),
-            "dietaryFiber": round(nutrients.get("Fiber, total dietary", 0), 1)
-        }
+        # חילוץ רכיבים תזונתיים
+        nutrients = {}
+        for nutrient in data.get("foodNutrients", []):
+            # תמיכה בשני מבני נתונים
+            nutrient_info = nutrient.get("nutrient", {})
+            name = nutrient_info.get("name", "") or nutrient.get("name", "")
+            value = nutrient.get("amount", 0) or nutrient.get("value", 0)
+            
+            if name and value is not None:
+                nutrients[name] = value
+
+        # מיפוי לערכים שאנחנו צריכים
+        result = {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+        
+        # חיפוש התאמות
+        for nutrient_name, nutrient_value in nutrients.items():
+            name_lower = nutrient_name.lower()
+            value = float(nutrient_value or 0)
+            
+            if "protein" in name_lower and result["proteins"] == 0:
+                result["proteins"] = round(value, 1)
+            elif any(word in name_lower for word in ["total lipid", "fat"]) and result["fats"] == 0:
+                result["fats"] = round(value, 1)
+            elif "carbohydrate" in name_lower and "by difference" in name_lower and result["carbohydrates"] == 0:
+                result["carbohydrates"] = round(value, 1)
+            elif "fiber" in name_lower and "dietary" in name_lower and result["dietaryFiber"] == 0:
+                result["dietaryFiber"] = round(value, 1)
+
+        return result
+
     except Exception as e:
-        print(f"USDA nutrition error: {e}")
         return None
 # חישוב ערכים תזונתיים לארוחות מורכבות
 def calculate_complex_meal_nutrition(meal_name):
