@@ -169,19 +169,30 @@ nutrition_db = {
     "מרק אפונה": {"proteins": 5, "fats": 1, "carbohydrates": 15, "dietaryFiber": 5},
 }
 
-def usda_search_food(food_name): #חדש
+def usda_search_food(food_name):
     url = "https://api.nal.usda.gov/fdc/v1/foods/search"
     params = {
         "query": food_name,
-        "pageSize": 1,
+        "pageSize": 5,  # במקום 1
         "api_key": USDA_API_KEY
     }
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
         results = response.json()
+
+        # חפשי את הפריט הראשון שיש לו fdcId ונראה רלוונטי
+        for food in results.get("foods", []):
+            fdc_id = food.get("fdcId")
+            description = food.get("description", "").lower()
+            # נניח שאנחנו מעדיפים פירות טבעיים
+            if "raw" in description or "fresh" in description or "apple" in description:
+                return fdc_id
+
+        # fallback – תחזירי את הראשון בכל מקרה
         if results.get("foods"):
             return results["foods"][0]["fdcId"]
+
         return None
     except Exception as e:
         print(f"USDA search error: {e}")
