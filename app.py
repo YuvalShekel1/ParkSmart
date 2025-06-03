@@ -22,7 +22,14 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import mean_squared_error
+import requests  # חדש
+import time      #חדש
 
+USDA_API_KEY ="BEQskSWfE4TbgTXy6GjTADB4ON7WX2ajidP3QPBq"
+USDA_BASE_URL = "https://api.nal.usda.gov/fdc/v1"  #חדש
+
+# Cache לחיפושים ב-API כדי למנוע קריאות מיותרות חדש
+api_cache = {}  #חדש
 # סתימת אזהרות
 warnings.filterwarnings('ignore')
 
@@ -162,6 +169,45 @@ nutrition_db = {
     "מרק אפונה": {"proteins": 5, "fats": 1, "carbohydrates": 15, "dietaryFiber": 5},
 }
 
+def usda_search_food(food_name): #חדש
+    url = "https://api.nal.usda.gov/fdc/v1/foods/search"
+    params = {
+        "query": food_name,
+        "pageSize": 1,
+        "api_key": USDA_API_KEY
+    }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        results = response.json()
+        if results.get("foods"):
+            return results["foods"][0]["fdcId"]
+        return None
+    except Exception as e:
+        print(f"USDA search error: {e}")
+        return None
+def usda_get_nutrition(fdc_id): #חדש
+    url = f"https://api.nal.usda.gov/fdc/v1/food/{fdc_id}"
+    params = {
+        "api_key": USDA_API_KEY
+    }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        # חילוץ ערכים נבחרים לפי שם
+        nutrients = {nutrient["name"]: nutrient["value"] for nutrient in data.get("foodNutrients", [])}
+
+        return {
+            "proteins": round(nutrients.get("Protein", 0), 1),
+            "fats": round(nutrients.get("Total lipid (fat)", 0), 1),
+            "carbohydrates": round(nutrients.get("Carbohydrate, by difference", 0), 1),
+            "dietaryFiber": round(nutrients.get("Fiber, total dietary", 0), 1)
+        }
+    except Exception as e:
+        print(f"USDA nutrition error: {e}")
+        return None
 # חישוב ערכים תזונתיים לארוחות מורכבות
 def calculate_complex_meal_nutrition(meal_name):
     # ערכים דיפולטיביים
@@ -241,13 +287,27 @@ def translate_value(value, key=None):
     else:
         return value
 
-def extract_food_nutrition(food_name):
-    # קודם בדוק התאמה מדויקת
+
+def extract_food_nutrition(food_name): #חדש
+    # אם קיים במסד שלנו
     if food_name in nutrition_db:
         return nutrition_db[food_name]
-    # השתמש במחשבון ארוחות מורכבות
-    return calculate_complex_meal_nutrition(food_name)
 
+    # נסה לחשב לפי חלקים מוכרים
+    estimated = calculate_complex_meal_nutrition(food_name)
+    if any(estimated.values()):
+        return estimated
+
+    # חיפוש ב־USDA אם לא נמצא
+    fdc_id = usda_search_food(food_name)
+    if fdc_id:
+        api_result = usda_get_nutrition(fdc_id)
+        if api_result:
+            return api_result
+
+    # אם כלום לא הצליח
+    return {"proteins": 0, "fats": 0, "carbohydrates": 0, "dietaryFiber": 0}
+    
 def upload_and_process(file_obj):
     global translated_data_global, original_full_json
     try:
