@@ -1584,11 +1584,11 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as a
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
 
     with gr.Row():
-        file_input = gr.File(label="Upload JSON File")
+        file_input = gr.File(label="Upload JSON File",height=100)
         upload_button = gr.Button("Upload and Process", variant="primary", size="lg")
     with gr.Row():
         output_text = gr.Textbox(label="Status", interactive=False)
-        processed_file = gr.File(label="Download Processed File", interactive=False)
+        processed_file = gr.File(label="Download Processed File", interactive=False,height=100)
 
     mood_selector = gr.Dropdown(
         ["Parkinson's State", "Physical State", "My Mood"],
