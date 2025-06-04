@@ -1579,6 +1579,11 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
+/* הקטנת גובה תיבת הקובץ */
+input[type="file"] {
+    height: 42px !important;
+    padding: 6px 10px !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
