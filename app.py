@@ -1579,12 +1579,34 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
+/* קביעת גובה אחיד לכל הקוביות */
+.gr-file, .gr-textbox {
+    height: 100px !important;
+    min-height: 100px !important;
+    max-height: 100px !important;
+}
+/* התאמת הטקסט בתוך קובייה של העלאת קובץ */
 .gr-file {
-    font-size: 12px !important;
-    min-height: 80px !important;
+    font-size: 11px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
 }
 .gr-file .file-name {
-    font-size: 11px !important;
+    font-size: 10px !important;
+    word-wrap: break-word !important;
+    overflow: hidden !important;
+}
+/* התאמת הטקסט בתוך קובייה של הורדת קובץ */
+.gr-file svg {
+    width: 16px !important;
+    height: 16px !important;
+}
+/* התאמת הטקסט בתוך טקסטבוקס */
+.gr-textbox textarea {
+    font-size: 12px !important;
+    padding: 8px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
