@@ -1579,6 +1579,24 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
+/* הקטנת קוביות קבצים - כולל מצב ריק */
+.gr-file {
+    height: 60px !important;
+    min-height: 60px !important;
+    max-height: 60px !important;
+}
+.gr-file > div {
+    height: 60px !important;
+    min-height: 60px !important;
+}
+.gr-file .upload-text {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+}
+.gr-file svg {
+    width: 18px !important;
+    height: 18px !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
