@@ -1579,17 +1579,22 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
-.gr-file {
+div[data-testid="file-upload"] {
     height: 60px !important;
+    min-height: 60px !important;
     max-height: 60px !important;
 }
-.gr-file .upload-text {
-    font-size: 10px !important;
-    line-height: 1.1 !important;
+div[data-testid="file-upload"] > div {
+    height: 60px !important;
+    padding: 4px 8px !important;
 }
-.gr-file svg {
-    width: 18px !important;
-    height: 18px !important;
+div[data-testid="file-upload"] svg {
+    width: 16px !important;
+    height: 16px !important;
+}
+div[data-testid="file-upload"] span {
+    font-size: 9px !important;
+    line-height: 1.1 !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
