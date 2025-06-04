@@ -1580,17 +1580,20 @@ button.primary:hover {
     font-size: 18px !important;
 }
 /* הקטנת גובה תיבת הקובץ */
-input[type="file"] {
+#file-upload button, #file-upload .col span {
     height: 42px !important;
     padding: 6px 10px !important;
+    font-size: 16px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
 
     with gr.Row():
-        file_input = gr.File(label="Upload JSON File")
-        upload_button = gr.Button("Upload and Process", variant="primary", size="lg")
+       with gr.Column(scale=4):
+        file_input = gr.File(label="Upload JSON File", file_types=[".json"], elem_id="file-upload")
+       with gr.Column(scale=1):
+        process_button = gr.Button("Upload and Process")
     with gr.Row():
         output_text = gr.Textbox(label="Status", interactive=False)
         processed_file = gr.File(label="Download Processed File", interactive=False)
