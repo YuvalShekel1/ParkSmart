@@ -1580,7 +1580,12 @@ button.primary:hover {
     font-size: 18px !important;
 }
 /* קביעת גובה אחיד לכל הקוביות */
-.gr-file, .gr-textbox {
+.gr-file {
+    height: 60px !important;
+    min-height: 60px !important;
+    max-height: 60px !important;
+}
+.gr-textbox {
     height: 100px !important;
     min-height: 100px !important;
     max-height: 100px !important;
