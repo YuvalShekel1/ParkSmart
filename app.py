@@ -1579,20 +1579,6 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
-/* הקטנת קובייה של העלאת קובץ */
-.file-upload {
-    height: 60px !important;
-    min-height: 60px !important;
-    font-size: 10px !important;
-}
-.file-upload .upload-container {
-    height: 60px !important;
-    padding: 5px !important;
-}
-/* התאמת הטקסט בתוך קובייה של העלאת קובץ */
-.file-upload .upload-text {
-    font-size: 9px !important;
-}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
