@@ -1579,6 +1579,13 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
+.gr-file {
+    font-size: 12px !important;
+    min-height: 80px !important;
+}
+.gr-file .file-name {
+    font-size: 11px !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
