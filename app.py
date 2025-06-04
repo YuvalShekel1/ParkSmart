@@ -1579,50 +1579,30 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
-/* קביעת גובה אחיד לכל הקוביות */
-.gr-file {
-    height: 20px !important;
-    min-height: 20px !important;
-    max-height: 20px !important;
+/* הקטנת קובייה של העלאת קובץ */
+.file-upload {
+    height: 60px !important;
+    min-height: 60px !important;
+    font-size: 10px !important;
 }
-.gr-textbox {
-    height: 100px !important;
-    min-height: 100px !important;
-    max-height: 100px !important;
+.file-upload .upload-container {
+    height: 60px !important;
+    padding: 5px !important;
 }
 /* התאמת הטקסט בתוך קובייה של העלאת קובץ */
-.gr-file {
-    font-size: 11px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
-}
-.gr-file .file-name {
-    font-size: 10px !important;
-    word-wrap: break-word !important;
-    overflow: hidden !important;
-}
-/* התאמת הטקסט בתוך קובייה של הורדת קובץ */
-.gr-file svg {
-    width: 16px !important;
-    height: 16px !important;
-}
-/* התאמת הטקסט בתוך טקסטבוקס */
-.gr-textbox textarea {
-    font-size: 12px !important;
-    padding: 8px !important;
+.file-upload .upload-text {
+    font-size: 9px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
 
     with gr.Row():
-        file_input = gr.File(label="Upload JSON File",height=100)
+        file_input = gr.File(label="Upload JSON File")
         upload_button = gr.Button("Upload and Process", variant="primary", size="lg")
     with gr.Row():
         output_text = gr.Textbox(label="Status", interactive=False)
-        processed_file = gr.File(label="Download Processed File", interactive=False,height=100)
+        processed_file = gr.File(label="Download Processed File", interactive=False)
 
     mood_selector = gr.Dropdown(
         ["Parkinson's State", "Physical State", "My Mood"],
