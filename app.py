@@ -1588,7 +1588,7 @@ button.primary:hover {
     height: auto !important;
     padding: 7px !important;
 }
-#component-3 button#component-4 {
+#component-2 button#component-4 {
     padding: 12px calc(16px);
 }
 #component-7 .empty.svelte-1oiin9d.large.unpadded_box {
