@@ -1579,32 +1579,20 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
-div[data-testid="file"] > div {
-    min-height: calc(86px) !important;
-}
-div[data-testid="file"] {
+#component-3 .wrap.svelte-12ioyct {
     flex-direction: row !important;
+    gap: 8px;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
     min-height: auto !important;
     height: auto !important;
-    padding: 12px !important;
-    font-size: 14px !important;
-    text-align: center !important;
+    padding: 7px !important;
 }
-div[data-testid="file"] .icon,
-div[data-testid="file"] svg {
-    width: 24px !important;
-    height: 24px !important;
-    margin-bottom: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+#component-3 button#component-4 {
+    padding: 12px calc(16px);
 }
-div[data-testid="file"] svg {
-    width: 100% !important;
-    height: 100% !important;
+#component-7 .empty.svelte-1oiin9d.large.unpadded_box {
+    min-height: 87px;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
