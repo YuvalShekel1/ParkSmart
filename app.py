@@ -1594,6 +1594,26 @@ button.primary:hover {
 #component-7 .empty.svelte-1oiin9d.large.unpadded_box {
     min-height: 87px;
 }
+div#component-5 {
+    flex-wrap: nowrap !important;
+    gap: 22px !important;
+    box-sizing: border-box !important;
+}
+div#component-6 {
+    height: fit-content !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+}
+div#component-7 {
+    flex-grow: 1 !important;
+    min-width: 50% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
