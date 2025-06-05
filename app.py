@@ -1589,7 +1589,7 @@ button.primary:hover {
     padding: 3px !important;
 }
 #component-2 button#component-4 {
-    padding: 9px calc(16px);
+    padding: 4px calc(16px);
 }
 #component-7 .empty.svelte-1oiin9d.large.unpadded_box {
     min-height: 87px;
@@ -1613,6 +1613,15 @@ div#component-7 {
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
+}
+div#component-3 .icon-wrap.svelte-12ioyct {
+    width: 20px;
+    margin-bottom: var(--spacing-lg);
+}
+div#component-3 .wrap.svelte-12ioyct {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+    gap: 4px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
