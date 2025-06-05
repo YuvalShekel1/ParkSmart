@@ -1627,6 +1627,15 @@ div#component-3 .wrap.svelte-12ioyct {
 button.svelte-edrmkl.center.boundedheight.flex {
     min-height: 41px !important;
 }
+div#component-3, div#component-7 {
+    border-style: solid !important;
+    border-color: #d1d5db !important;
+    border-width: 1px !important;
+    border-radius: var(--radius-sm) !important;
+}
+.form.svelte-633qhp {
+    border: 1px solid #d1d5db !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
