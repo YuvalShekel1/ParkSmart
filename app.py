@@ -1579,6 +1579,58 @@ button.primary:hover {
 .markdown {
     font-size: 18px !important;
 }
+.fgid_12290 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    margin-top: 0 !important;
+    /* הורדנו את ה־height:100% והגבלנו גובה מינימלי קטן יותר */
+    height: auto !important;
+    min-height: 86px !important;   /* במקום calc(236px) הקודם */
+    border-style: solid !important;
+    border-width: 0 !important;
+}
+.fgid_12296 {
+    border-style: solid !important;
+    box-sizing: border-box !important;
+    height: 20px !important;      /* שמרנו 20px כפי שהגדרת */
+    color: rgb(39, 39, 42) !important;
+    border-width: 0 !important;
+    opacity: 0.5 !important;
+}
+.fgid_12194 {
+    padding: 12px 16px !important; /* padding: 12px calc(16px) של הכפתור */
+    /* אפשר להוסיף כאן כל שינוי נוסף—למשל font-size או height, אם תרצי */
+}
+.fgid_12146 {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    box-sizing: border-box !important;
+    margin: auto 8px !important;
+    padding: 12px !important;         /* כפי שרשמת */
+    font-size: 14px !important;       /* הקטנת טקסט */
+    text-align: center !important;
+    height: auto !important;
+    min-height: auto !important;
+    color: rgb(113, 113, 122) !important;
+    line-height: 1.5 !important;
+}
+.fgid_12152 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    margin-bottom: 0 !important;
+}
+.fgid_12152 svg {
+    width: 100% !important;
+    height: 100% !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
