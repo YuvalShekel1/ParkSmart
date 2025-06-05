@@ -1586,10 +1586,10 @@ button.primary:hover {
     justify-content: center !important;
     min-height: auto !important;
     height: auto !important;
-    padding: 7px !important;
+    padding: 3px !important;
 }
 #component-2 button#component-4 {
-    padding: 12px calc(16px);
+    padding: 9px calc(16px);
 }
 #component-7 .empty.svelte-1oiin9d.large.unpadded_box {
     min-height: 87px;
