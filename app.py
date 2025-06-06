@@ -1696,7 +1696,7 @@ div#component-3, div#component-7 {
 #nutrition-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-between !important;
+    justify-content: space-evenly !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -1705,7 +1705,7 @@ div#component-3, div#component-7 {
 #medication-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-between !important;
+    justify-content: space-evenly !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -1714,7 +1714,7 @@ div#component-3, div#component-7 {
 #activity-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-between !important;
+    justify-content: space-evenly !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -1723,7 +1723,7 @@ div#component-3, div#component-7 {
 #symptom-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-between !important;
+    justify-content: space-evenly !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
