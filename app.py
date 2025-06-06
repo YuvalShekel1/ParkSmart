@@ -1119,6 +1119,7 @@ def nutrition_analysis_summary(mood_field):
     ניתוח השפעת התזונה על מצב הרוח/פרקינסון באמצעות רגרסיה לינארית
     עם הפרדה בין ערכים תזונתיים בסיסיים למאכלים ספציפיים
     """
+    global translated_data_global 
     if not translated_data_global:
         return "Please upload and process data first."
     
@@ -1137,7 +1138,7 @@ def nutrition_analysis_summary(mood_field):
 
         if nutrition_df.empty or mood_df.empty:
             return "No data available for analysis."
-
+            
         enriched_data = []
         for _, food_row in nutrition_df.iterrows():
             food_time = food_row["date"]
@@ -1216,14 +1217,11 @@ def nutrition_analysis_summary(mood_field):
             food_dummies = pd.get_dummies(df['food'], prefix='food')
             
             # רגרסיה לינארית
-            X_foods = food_dummies
-            y_foods = df["mood"]
-            
             food_model = LinearRegression()
-            food_model.fit(X_foods, y_foods)
+            food_model.fit(food_dummies, y_mood)
             
             # חילוץ המקדמים
-            for food_col, coef in zip(X_foods.columns, food_model.coef_):
+            for food_col, coef in zip(food_dummies.columns, food_model.coef_):
                 if abs(coef) >= 0.1:  # רק מקדמים משמעותיים
                     food_name = food_col.replace('food_', '')
                     food_result.append({
@@ -1236,45 +1234,39 @@ def nutrition_analysis_summary(mood_field):
         nutrient_result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
         food_result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
         
-        # הכנת הסיכום עבור רכיבים תזונתיים
         mood_field_lower = mood_field.lower()
-        header = f"## 🍽️ **Nutrition impact on {mood_field}**\n\n"
         
-        # רכיבים תזונתיים
-        nutrient_green = []
-        nutrient_red = []
-        nutrient_neutral = []
-
+        # --- בניית ה-HTML עבור רכיבים תזונתיים ---
+        nutrient_insights_lines_html = []
         for item in nutrient_result:
             feature_value = item.get("feature_value", "")
             effect = item.get("effect")
-            effect_str = f"{abs(effect)/5*100:.1f}%"  # עיגול לספרה אחת אחרי הנקודה
+            effect_str = f"{abs(effect)/5*100:.1f}%"
             
-            # קביעת כיוון והצבע לפי סוג שדה המצב
             is_positive, is_negative = determine_colors(effect, mood_field)
             
+            # שימוש ביוניקוד וב-<span> עם סגנון ישיר לצבעים במקום Markdown
             if abs(effect) < 0.05:
-                line = f"⚫ **{feature_value}**: no significant impact\n\n"
-                nutrient_neutral.append(line)
+                line_html = f"<p>&#x26AB; <strong>{feature_value}</strong>: no significant impact</p>" # Black circle
             elif is_positive:
                 direction = "increases" if effect > 0 else "decreases"
-                line = f"🟢 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                nutrient_green.append(line)
+                # הדגשה של food_name ו-feature_value
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
             else:  # is_negative
                 direction = "increases" if effect > 0 else "decreases"
-                line = f"🔴 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                nutrient_red.append(line)
-
-        # רק הערכים התזונתיים בחלק הבסיסי
-        nutrient_insights = header + "".join(nutrient_green + nutrient_red + nutrient_neutral)
-        
-        # חלק מפורט עבור מזונות ספציפיים
-        food_insights = ""
-        if food_result:
-            food_green = []
-            food_red = []
-            food_neutral = []
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
             
+            nutrient_insights_lines_html.append(line_html)
+        
+        nutrient_insights_html_section = f"""
+        <h2>🍽️ <strong>Nutrition impact on {mood_field}</strong></h2>
+        {"".join(nutrient_insights_lines_html)}
+        """
+        
+        # --- בניית ה-HTML עבור מזונות ספציפיים ---
+        food_insights_html_section = ""
+        if food_result:
+            food_insights_lines_html = []
             for item in food_result:
                 feature_value = item.get("feature_value", "")
                 effect = item.get("effect")
@@ -1283,27 +1275,43 @@ def nutrition_analysis_summary(mood_field):
                 is_positive, is_negative = determine_colors(effect, mood_field)
                 
                 if abs(effect) < 0.05:
-                    line = f"⚫ **{feature_value}**: no significant impact\n\n"
-                    food_neutral.append(line)
+                    line_html = f"<p>&#x26AB; <strong>{feature_value}</strong>: no significant impact</p>"
                 elif is_positive:
                     direction = "increases" if effect > 0 else "decreases"
-                    line = f"🟢 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                    food_green.append(line)
+                    # כאן אנו מדגישים את food_name, כפי שביקשת
+                    line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
                 else:  # is_negative
                     direction = "increases" if effect > 0 else "decreases"
-                    line = f"🔴 **{feature_value}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                    food_red.append(line)
+                    line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
+                
+                food_insights_lines_html.append(line_html)
             
-            # הוספת כותרת לחלק המפורט
-            food_insights = "\n## Detailed Food Patterns\n\n" + "".join(food_green + food_red + food_neutral)
+            food_insights_html_section = f"""
+            <h2>Detailed Food Patterns</h2>
+            {"".join(food_insights_lines_html)}
+            """
         
-        # שילוב כל החלקים
-        combined_insights = nutrient_insights + food_insights
-        
-        if nutrient_insights.strip() == header.strip() and not food_insights:
+        # --- שילוב כל החלקים במבנה HTML סופי ---
+        # בדיקה אם יש תוכן משמעותי לפני בניית ה-HTML
+        if not nutrient_insights_lines_html and not food_insights_lines_html:
             return "No significant nutrient or food patterns found."
 
-        return combined_insights
+        # זהו המבנה הסופי שיוחזר כ-HTML
+        final_html_output = f"""
+        <div id="nutrition-analysis-container" class="svelte-vuh1yp">
+            <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
+                <span class="md svelte-7ddecg prose">
+                    <div class="column-content">
+                        {nutrient_insights_html_section}
+                    </div>
+                    <div class="column-content">
+                        {food_insights_html_section}
+                    </div>
+                </span>
+            </div>
+        </div>
+        """
+        return final_html_output
         
     except Exception as e:
         return f"Error in nutrition analysis: {str(e)}"
@@ -1322,6 +1330,7 @@ def determine_colors(effect, mood_field):
         return effect > 0, effect < 0
 
 def activity_analysis_summary(mood_field):
+    global translated_data_global
     if not translated_data_global:
         return "Please upload and process data first."
 
@@ -1334,24 +1343,23 @@ def activity_analysis_summary(mood_field):
         return "No patterns found."
 
     mood_field_lower = mood_field.lower()
-    header = f"## 🏃 **Activity impact on {mood_field}**\n\n"
 
-    # מיון התובנות לפי סוג וכיוון השפעה
-    green_insights = []
-    red_insights = []
-    neutral_insights = []
+    # Lists to store HTML lines for basic insights
+    basic_green_html = []
+    basic_red_html = []
+    basic_neutral_html = []
     
-    # תובנות דפוסים מפורטים
-    green_detailed_insights = []
-    red_detailed_insights = []
+    # Lists to store HTML lines for detailed insights
+    detailed_green_html = []
+    detailed_red_html = []
 
     for item in advanced_analysis:
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%"  # עיגול לספרה אחת אחרי הנקודה
+        effect_str = f"{abs(effect)/5*100:.1f}%"
 
-        # קביעת הכותרת/תווית להצגה
+        # Determine label for display
         if feature_type == "activity_name":
             label = feature_value.strip().title()
         elif feature_type == "intensity":
@@ -1367,45 +1375,61 @@ def activity_analysis_summary(mood_field):
         else:
             label = feature_value
 
-        # קביעת כיוון והצבע לפי סוג שדה המצב
         is_positive, is_negative = determine_colors(effect, mood_field)
+        direction = "increases" if effect > 0 else "decreases"
 
-        # קביעת כיוון ותו
+        # Construct HTML line
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
-            neutral_insights.append(line)
-        elif is_positive:  # השתמש בתנאי החדש במקום effect > 0
+            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
+            basic_neutral_html.append(line_html)
+        elif is_positive:
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                # עדכון הטקסט - כיוון עלייה/ירידה תלוי בסוג השדה
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🟢 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                green_detailed_insights.append(line)
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+                detailed_green_html.append(line_html)
             else:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                green_insights.append(line)
-        else:  # is_negative
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+                basic_green_html.append(line_html)
+        else: # is_negative
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🔴 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                red_detailed_insights.append(line)
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+                detailed_red_html.append(line_html)
             else:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                red_insights.append(line)
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+                basic_red_html.append(line_html)
 
-    # שילוב לפי סדר עדיפות
-    basic_insights = header + "".join(green_insights + red_insights + neutral_insights)
-    
-    # בדוק אם יש תובנות מפורטות
-    detailed_insights = ""
-    if green_detailed_insights or red_detailed_insights:
-        detailed_insights = "\n## Detailed Activity Patterns\n\n" + "".join(green_detailed_insights + red_detailed_insights)
-    
-    # שלב הכל ביחד
-    combined_insights = basic_insights + detailed_insights
-    
-    return combined_insights
+    # Combine basic insights into an HTML section
+    activity_insights_html_section = f"""
+    <h2>🏃 <strong>Activity impact on {mood_field}</strong></h2>
+    {"".join(basic_green_html + basic_red_html + basic_neutral_html)}
+    """
+
+    # Combine detailed insights into an HTML section
+    detailed_activity_insights_html_section = ""
+    if detailed_green_html or detailed_red_html:
+        detailed_activity_insights_html_section = f"""
+        <h2>Detailed Activity Patterns</h2>
+        {"".join(detailed_green_html + detailed_red_html)}
+        """
+
+    # Final HTML output structure with two columns
+    if not basic_green_html and not basic_red_html and not basic_neutral_html and not detailed_green_html and not detailed_red_html:
+        return "No significant activity patterns found."
+
+    final_html_output = f"""
+    <div id="activity-analysis-container" class="svelte-vuh1yp">
+        <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
+            <span class="md svelte-7ddecg prose">
+                <div class="column-content">
+                    {activity_insights_html_section}
+                </div>
+                <div class="column-content">
+                    {detailed_activity_insights_html_section}
+                </div>
+            </span>
+        </div>
+    </div>
+    """
+    return final_html_output
 
 def medication_analysis_summary(mood_field):
     """
@@ -1425,21 +1449,20 @@ def medication_analysis_summary(mood_field):
     
     # עיבוד התובנות בדיוק כמו בפעילויות
     mood_field_lower = mood_field.lower()
-    header = f"## 💊 **Medication impact on {mood_field}**\n\n"
     
-    green_insights = []
-    red_insights = []
-    neutral_insights = []
+    basic_green_html = []
+    basic_red_html = []
+    basic_neutral_html = []
     
     # תובנות דפוסים מפורטים של חלונות זמן ורצפי תרופות
-    green_detailed_insights = []
-    red_detailed_insights = []
+    detailed_green_html = []
+    detailed_red_html = []
     
     for item in advanced_analysis:
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%"  # עיגול לספרה אחת אחרי הנקודה
+        effect_str = f"{abs(effect)/5*100:.1f}%" 
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
         if feature_type == "medication_name":
@@ -1457,42 +1480,60 @@ def medication_analysis_summary(mood_field):
         
         # קביעת כיוון והצבע לפי סוג שדה המצב
         is_positive, is_negative = determine_colors(effect, mood_field)
+        direction = "increases" if effect > 0 else "decreases"
         
-        # קביעת כיוון ותו
+        # Construct HTML line
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
-            neutral_insights.append(line)
-        elif is_positive:  # השתמש בתנאי החדש במקום effect > 0
+            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
+            basic_neutral_html.append(line_html)
+        elif is_positive:
             if feature_type in ["time_window", "medication_sequence"]:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🟢 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                green_detailed_insights.append(line)
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+                detailed_green_html.append(line_html)
             else:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                green_insights.append(line)
-        else:  # is_negative
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+                basic_green_html.append(line_html)
+        else: # is_negative
             if feature_type in ["time_window", "medication_sequence"]:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🔴 **{label}** {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                red_detailed_insights.append(line)
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+                detailed_red_html.append(line_html)
             else:
-                direction = "increases" if effect > 0 else "decreases"
-                line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-                red_insights.append(line)
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+                basic_red_html.append(line_html)
     
-    # שילוב לפי סדר עדיפות
-    pattern_insights = header + "".join(green_insights + red_insights + neutral_insights)
-    
-    # בדוק אם יש תובנות מפורטות
-    detailed_insights = ""
-    if green_detailed_insights or red_detailed_insights:
-        detailed_insights = "\n## Detailed Medication Patterns\n\n" + "".join(green_detailed_insights + red_detailed_insights)
-    
-    # שלב הכל ביחד
-    combined_insights = pattern_insights + detailed_insights
-    
-    return combined_insights
+    # Combine basic insights into an HTML section
+    medication_insights_html_section = f"""
+    <h2>💊 <strong>Medication impact on {mood_field}</strong></h2>
+    {"".join(basic_green_html + basic_red_html + basic_neutral_html)}
+    """
+
+    # Combine detailed insights into an HTML section
+    detailed_medication_insights_html_section = ""
+    if detailed_green_html or detailed_red_html:
+        detailed_medication_insights_html_section = f"""
+        <h2>Detailed Medication Patterns</h2>
+        {"".join(detailed_green_html + detailed_red_html)}
+        """
+
+    # Final HTML output structure with two columns
+    if not basic_green_html and not basic_red_html and not basic_neutral_html and not detailed_green_html and not detailed_red_html:
+        return "No significant medication patterns found."
+
+    final_html_output = f"""
+    <div id="medication-analysis-container" class="svelte-vuh1yp">
+        <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
+            <span class="md svelte-7ddecg prose">
+                <div class="column-content">
+                    {medication_insights_html_section}
+                </div>
+                <div class="column-content">
+                    {detailed_medication_insights_html_section}
+                </div>
+            </span>
+        </div>
+    </div>
+    """
+    return final_html_output
 
 def symptom_analysis_summary(mood_field):
     """
@@ -1501,7 +1542,7 @@ def symptom_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
     
-    # ניתוח מתקדם של דפוסי סימפטומים
+    # ניתוח מתקדם של דפוסים בסימפטומים
     advanced_analysis = analyze_symptom_patterns(translated_data_global, mood_field)
     
     if isinstance(advanced_analysis, str):
@@ -1510,42 +1551,56 @@ def symptom_analysis_summary(mood_field):
     if not advanced_analysis:
         return "No symptom patterns found."
     
-    # עיבוד התובנות
+    # עיבוד התובנות - כל התובנות יבנו במקטע HTML אחד
     mood_field_lower = mood_field.lower()
-    header = f"## 🩺 **Symptom impact on {mood_field}**\n\n"
     
-    green_insights = []
-    red_insights = []
-    neutral_insights = []
-    
+    all_insights_html_lines = []
+
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%"  # עיגול לספרה אחת אחרי הנקודה
+        effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
         
-        # התווית היא שם הסימפטום בלי "type_"
+        # התווית היא שם הסימפטום
         label = feature_value
         
         # קביעת כיוון והצבע לפי סוג שדה המצב
         is_positive, is_negative = determine_colors(effect, mood_field)
+        direction = "increases" if effect > 0 else "decreases"
         
-        # קביעת כיוון ותו
+        # Construct HTML line for all insights
         if abs(effect) < 0.05:
-            line = f"⚫ **{label}**: no significant impact\n\n"
-            neutral_insights.append(line)
-        elif is_positive:  # השתמש בתנאי החדש במקום effect > 0
-            direction = "increases" if effect > 0 else "decreases"
-            line = f"🟢 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-            green_insights.append(line)
-        else:  # is_negative
-            direction = "increases" if effect > 0 else "decreases"
-            line = f"🔴 **{label}**: {direction} {mood_field_lower} by {effect_str} on average\n\n"
-            red_insights.append(line)
+            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
+        elif is_positive:
+            line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+        else: # is_negative
+            line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+        
+        all_insights_html_lines.append(line_html)
     
-    # שילוב לפי סדר עדיפות
-    combined_insights = header + "".join(green_insights + red_insights + neutral_insights)
-    
-    return combined_insights
+    # בניית החלק הראשי של ה-HTML (כל התובנות בעמודה אחת)
+    main_symptom_insights_html_section = f"""
+    <h2>🩺 <strong>Symptom impact on {mood_field}</strong></h2>
+    {"".join(all_insights_html_lines)}
+    """ if all_insights_html_lines else ""
+
+    # Handle cases where no patterns at all are found
+    if not all_insights_html_lines:
+        return "No significant symptom patterns found."
+
+    # Final HTML output structure - Use only ONE column-content div
+    final_html_output = f"""
+    <div id="symptom-analysis-container" class="svelte-vuh1yp">
+        <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
+            <span class="md svelte-7ddecg prose">
+                <div class="column-content"> 
+                    {main_symptom_insights_html_section}
+                </div>
+            </span>
+        </div>
+    </div>
+    """
+    return final_html_output
     
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
@@ -1636,6 +1691,42 @@ div#component-3, div#component-7 {
 .form.svelte-633qhp {
     border: 1px solid #d1d5db !important;
 }
+#nutrition-analysis-container span.md.svelte-7ddecg.prose {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-around !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 20px !important;
+}
+#medication-analysis-container span.md.svelte-7ddecg.prose {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-around !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 20px !important;
+}
+#activity-analysis-container span.md.svelte-7ddecg.prose {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-around !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 20px !important;
+}
+#symptom-analysis-container span.md.svelte-7ddecg.prose {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-around !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 20px !important;
+}
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
     gr.Markdown("# 📈 Parkinson's Health Pattern Analysis")
@@ -1656,19 +1747,19 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as a
     with gr.Tabs():
         with gr.TabItem("🏃 Activity Analysis"):
             activity_button = gr.Button("Analyze Activity Patterns", variant="primary")
-            activity_output = gr.Markdown(label="Activity Insights")
+            activity_output = gr.HTML(label="Activity Insights")
         
         with gr.TabItem("💊 Medication Analysis"):
             medication_button = gr.Button("Analyze Medication Patterns", variant="primary")
-            medication_output = gr.Markdown(label="Medication Insights")
+            medication_output = gr.HTML(label="Medication Insights")
 
         with gr.TabItem("🩺 Symptom Analysis"):
             symptom_button = gr.Button("Analyze Symptom Patterns", variant="primary")
-            symptom_output = gr.Markdown(label="Symptom Insights")
+            symptom_output = gr.HTML(label="Symptom Insights")
             
         with gr.TabItem("🍽️ Nutrition Analysis"):
             nutrition_button = gr.Button("Analyze Nutrition Patterns", variant="primary")
-            nutrition_output = gr.Markdown(label="Nutrition Insights")    
+            nutrition_output = gr.HTML(label="Nutrition Insights")    
 
     # קישור הפונקציות לכפתורים
     upload_button.click(fn=upload_json, inputs=[file_input], outputs=[processed_file, output_text])
