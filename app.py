@@ -1251,10 +1251,10 @@ def nutrition_analysis_summary(mood_field):
             elif is_positive:
                 direction = "increases" if effect > 0 else "decreases"
                 # הדגשה של food_name ו-feature_value
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Green circle
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
             else:  # is_negative
                 direction = "increases" if effect > 0 else "decreases"
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Red circle
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
             
             nutrient_insights_lines_html.append(line_html)
         
@@ -1279,10 +1279,10 @@ def nutrition_analysis_summary(mood_field):
                 elif is_positive:
                     direction = "increases" if effect > 0 else "decreases"
                     # כאן אנו מדגישים את food_name, כפי שביקשת
-                    line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>"
+                    line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
                 else:  # is_negative
                     direction = "increases" if effect > 0 else "decreases"
-                    line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>"
+                    line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
                 
                 food_insights_lines_html.append(line_html)
             
@@ -1357,15 +1357,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        is_detailed = feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]
-
-        # For basic features, compute percentage
-        if not is_detailed:
-         effect_str = f"{abs(effect)/5*100:.1f}%"
-         display_effect_str = f"{direction} {mood_field_lower} by {effect_str} on average"
-        else:
-         # For detailed features, show raw effect
-         display_effect_str = f"{direction} {mood_field_lower} by {abs(effect):.1f} on average"
+        effect_str = f"{abs(effect)/5*100:.1f}%"
 
         # Determine label for display
         if feature_type == "activity_name":
@@ -1392,17 +1384,17 @@ def activity_analysis_summary(mood_field):
             basic_neutral_html.append(line_html)
         elif is_positive:
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Green circle
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
                 detailed_green_html.append(line_html)
             else:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Green circle
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
                 basic_green_html.append(line_html)
         else: # is_negative
             if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Red circle
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
                 detailed_red_html.append(line_html)
             else:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Red circle
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
                 basic_red_html.append(line_html)
 
     # Combine basic insights into an HTML section
@@ -1496,17 +1488,17 @@ def medication_analysis_summary(mood_field):
             basic_neutral_html.append(line_html)
         elif is_positive:
             if feature_type in ["time_window", "medication_sequence"]:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Green circle
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
                 detailed_green_html.append(line_html)
             else:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Green circle
+                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
                 basic_green_html.append(line_html)
         else: # is_negative
             if feature_type in ["time_window", "medication_sequence"]:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Red circle
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
                 detailed_red_html.append(line_html)
             else:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Red circle
+                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
                 basic_red_html.append(line_html)
     
     # Combine basic insights into an HTML section
@@ -1580,9 +1572,9 @@ def symptom_analysis_summary(mood_field):
         if abs(effect) < 0.05:
             line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
         elif is_positive:
-            line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Green circle
+            line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
         else: # is_negative
-            line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {display_effect_str} on average</p>" # Red circle
+            line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
         
         all_insights_html_lines.append(line_html)
     
