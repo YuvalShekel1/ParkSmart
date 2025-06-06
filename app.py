@@ -1241,6 +1241,8 @@ def nutrition_analysis_summary(mood_field):
         for item in nutrient_result:
             feature_value = item.get("feature_value", "")
             effect = item.get("effect")
+            if effect>5:
+             effect=effect/1000000
             effect_str = f"{abs(effect)/5*100:.1f}%"
             
             is_positive, is_negative = determine_colors(effect, mood_field)
@@ -1270,6 +1272,8 @@ def nutrition_analysis_summary(mood_field):
             for item in food_result:
                 feature_value = item.get("feature_value", "")
                 effect = item.get("effect")
+                if effect>5:
+                 effect=effect/1000000
                 effect_str = f"{abs(effect)/5*100:.1f}%"
                 
                 is_positive, is_negative = determine_colors(effect, mood_field)
@@ -1464,6 +1468,8 @@ def medication_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
+        if effect>5:
+            effect=effect/1000000
         effect_str = f"{abs(effect)/5*100:.1f}%" 
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
@@ -1561,6 +1567,8 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
+        if effect>5:
+            effect=effect/1000000
         effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום
