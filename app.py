@@ -674,8 +674,6 @@ def analyze_activity_patterns(data, mood_field):
                                 
                                 # חילוץ המקדמים המשמעותיים
                                 for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) > 100:  # דלג על מקדמים לא סבירים
-                                         continue
                                     if abs(coef) >= 0.2:
                                         # פירוק שם התכונה
                                         parts = feature_name.split("_")
@@ -1696,42 +1694,38 @@ div#component-3, div#component-7 {
 #nutrition-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
-    gap: 80px !important;  /* במקום 20px */
+    justify-content: space-around !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    #gap: 20px !important;
+    gap: 80px !important;
 }
 #medication-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
-    gap: 80px !important;  /* במקום 20px */
+    justify-content: space-around !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-   # gap: 20px !important;
+    gap: 80px !important;
 }
 #activity-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
-    gap: 80px !important;  /* במקום 20px */
+    justify-content: space-around !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-  #  gap: 20px !important;
+    gap: 80px !important;
 }
 #symptom-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
-    gap: 80px !important;  /* במקום 20px */
+    justify-content: space-around !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
- #   gap: 20px !important;
+    gap: 80px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
