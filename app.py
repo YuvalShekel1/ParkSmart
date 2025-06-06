@@ -674,6 +674,8 @@ def analyze_activity_patterns(data, mood_field):
                                 
                                 # חילוץ המקדמים המשמעותיים
                                 for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
+                                    if abs(coef) > 100:  # דלג על מקדמים לא סבירים
+                                         continue
                                     if abs(coef) >= 0.2:
                                         # פירוק שם התכונה
                                         parts = feature_name.split("_")
