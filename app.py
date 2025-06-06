@@ -1701,7 +1701,7 @@ div#component-3, div#component-7 {
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+    #gap: 20px !important;
 }
 #medication-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
@@ -1711,7 +1711,7 @@ div#component-3, div#component-7 {
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+   # gap: 20px !important;
 }
 #activity-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
@@ -1721,7 +1721,7 @@ div#component-3, div#component-7 {
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+  #  gap: 20px !important;
 }
 #symptom-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
@@ -1731,7 +1731,7 @@ div#component-3, div#component-7 {
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+ #   gap: 20px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
