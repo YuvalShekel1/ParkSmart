@@ -1402,7 +1402,9 @@ def activity_analysis_summary(mood_field):
     # Combine basic insights into an HTML section
     activity_insights_html_section = f"""
     <h2>🏃 <strong>Activity impact on {mood_field}</strong></h2>
-    {"".join(basic_green_html + basic_red_html + basic_neutral_html)}
+    {"".join(basic_green_html)}
+    {"".join(basic_red_html)}
+    {"".join(basic_neutral_html)}
     """
 
     # Combine detailed insights into an HTML section
@@ -1506,7 +1508,9 @@ def medication_analysis_summary(mood_field):
     # Combine basic insights into an HTML section
     medication_insights_html_section = f"""
     <h2>💊 <strong>Medication impact on {mood_field}</strong></h2>
-    {"".join(basic_green_html + basic_red_html + basic_neutral_html)}
+    {"".join(basic_green_html)}
+    {"".join(basic_red_html)}
+    {"".join(basic_neutral_html)}
     """
 
     # Combine detailed insights into an HTML section
