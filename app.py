@@ -1697,7 +1697,7 @@ div#component-3, div#component-7 {
     display: flex !important;
     flex-wrap: nowrap !important;
     justify-content: flex-start !important;
-    gap: 40px !important;  /* במקום 20px */
+    gap: 80px !important;  /* במקום 20px */
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -1707,7 +1707,7 @@ div#component-3, div#component-7 {
     display: flex !important;
     flex-wrap: nowrap !important;
     justify-content: flex-start !important;
-    gap: 40px !important;  /* במקום 20px */
+    gap: 80px !important;  /* במקום 20px */
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -1717,7 +1717,7 @@ div#component-3, div#component-7 {
     display: flex !important;
     flex-wrap: nowrap !important;
     justify-content: flex-start !important;
-    gap: 40px !important;  /* במקום 20px */
+    gap: 80px !important;  /* במקום 20px */
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -1727,7 +1727,7 @@ div#component-3, div#component-7 {
     display: flex !important;
     flex-wrap: nowrap !important;
     justify-content: flex-start !important;
-    gap: 40px !important;  /* במקום 20px */
+    gap: 80px !important;  /* במקום 20px */
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
