@@ -1694,38 +1694,38 @@ div#component-3, div#component-7 {
 #nutrition-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-around !important;
+    justify-content: flex-start !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+    gap: 80px !important;
 }
 #medication-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-around !important;
+    justify-content: flex-start !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+    gap: 80px !important;
 }
 #activity-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-around !important;
+    justify-content: flex-start !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+    gap: 80px !important;
 }
 #symptom-analysis-container span.md.svelte-7ddecg.prose {
     display: flex !important;
     flex-wrap: nowrap !important;
-    justify-content: space-around !important;
+    justify-content: flex-start !important;
     align-items: flex-start !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    gap: 20px !important;
+    gap: 80px !important;
 }
 """
 with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as app:
