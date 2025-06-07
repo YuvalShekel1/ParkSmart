@@ -22,6 +22,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import StandardScaler
 import requests  # חדש
 import time      #חדש
 
@@ -601,8 +602,12 @@ def analyze_activity_patterns(data, mood_field):
             
             # רגרסיה אחת על כל הנתונים
             if len(df) >= 5 and all_detailed_features.shape[1] > 0:
+                # נורמליזציה של הנתונים
+                scaler = StandardScaler()
+                all_detailed_features_scaled = scaler.fit_transform(all_detailed_features)
+                
                 detailed_model = LinearRegression()
-                detailed_model.fit(all_detailed_features, df["mood_after"])
+                detailed_model.fit(all_detailed_features_scaled, df["mood_after"])
                 
                 # חילוץ המקדמים
                 for feature_name, coef in zip(all_detailed_features.columns, detailed_model.coef_):
