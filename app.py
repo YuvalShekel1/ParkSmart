@@ -1259,7 +1259,7 @@ def nutrition_analysis_summary(mood_field):
             nutrient_insights_lines_html.append(line_html)
         
         nutrient_insights_html_section = f"""
-        <h2>🍽️ <strong>Nutrition impact on {mood_field}</strong></h2>
+        <h2🍴 <strong>Nutrition impact on {mood_field}</strong></h2>
         {"".join(nutrient_insights_lines_html)}
         """
         
@@ -1287,7 +1287,7 @@ def nutrition_analysis_summary(mood_field):
                 food_insights_lines_html.append(line_html)
             
             food_insights_html_section = f"""
-            <h2>Detailed Food Patterns</h2>
+            <h2>🍽️ Detailed Food Patterns</h2>
             {"".join(food_insights_lines_html)}
             """
         
@@ -1407,7 +1407,7 @@ def activity_analysis_summary(mood_field):
     detailed_activity_insights_html_section = ""
     if detailed_green_html or detailed_red_html:
         detailed_activity_insights_html_section = f"""
-        <h2>Detailed Activity Patterns</h2>
+        <h2>🏋️ Detailed Activity Patterns</h2>
         {"".join(detailed_green_html + detailed_red_html)}
         """
 
@@ -1511,7 +1511,7 @@ def medication_analysis_summary(mood_field):
     detailed_medication_insights_html_section = ""
     if detailed_green_html or detailed_red_html:
         detailed_medication_insights_html_section = f"""
-        <h2>Detailed Medication Patterns</h2>
+        <h2>💉 Detailed Medication Patterns</h2>
         {"".join(detailed_green_html + detailed_red_html)}
         """
 
