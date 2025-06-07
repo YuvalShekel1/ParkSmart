@@ -588,109 +588,49 @@ def analyze_activity_patterns(data, mood_field):
             df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
             df["duration_long"] = (df["duration"] >= 60).astype(int)
             
-            # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
-            for activity in df["activity_name"].unique():
-                activity_df = df[df["activity_name"] == activity].copy()
+            # יצירת משתנים דמי לאינטראקציות
+            activity_dummies = pd.get_dummies(df["activity_name"], prefix="activity")
+            intensity_dummies = pd.get_dummies(df["intensity"], prefix="intensity")
+            
+            # שילוב כל התכונות
+            all_detailed_features = pd.concat([
+                activity_dummies,
+                intensity_dummies,
+                df[["duration_short", "duration_medium", "duration_long"]]
+            ], axis=1)
+            
+            # רגרסיה אחת על כל הנתונים
+            if len(df) >= 5 and all_detailed_features.shape[1] > 0:
+                detailed_model = LinearRegression()
+                detailed_model.fit(all_detailed_features, df["mood_after"])
                 
-                # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if len(activity_df) >= 3:
-                    # ניתוח לפי משך זמן
-                    if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
-                        # יצירת רגרסיה לינארית עם משתני משך זמן
-                        X_duration = activity_df[["duration_short", "duration_medium", "duration_long"]]
-                        y_duration = activity_df["mood_after"]
+                # חילוץ המקדמים
+                for feature_name, coef in zip(all_detailed_features.columns, detailed_model.coef_):
+                    if abs(coef) >= 0.2:  # רק מקדמים משמעותיים
                         
-                        try:
-                            duration_model = LinearRegression()
-                            duration_model.fit(X_duration, y_duration)
-                            
-                            # חילוץ המקדמים
-                            duration_labels = ["short", "medium", "long"]
-                            for i, coef in enumerate(duration_model.coef_):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
-                                    result.append({
-                                        "feature_type": "detailed_duration",
-                                        "feature_value": f"{activity} {duration_desc}",
-                                        "effect": round(coef, 2)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח לפי עצימות
-                    if len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # מיזוג עם נתוני המצב רוח
-                            intensity_data = pd.concat([intensity_dummies, activity_df["mood_after"]], axis=1)
-                            
-                            # רגרסיה לינארית
-                            X_intensity = intensity_data.drop("mood_after", axis=1)
-                            y_intensity = intensity_data["mood_after"]
-                            
-                            intensity_model = LinearRegression()
-                            intensity_model.fit(X_intensity, y_intensity)
-                            
-                            # חילוץ המקדמים
-                            for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    intensity_value = intensity_name.split("_")[-1]
-                                    result.append({
-                                        "feature_type": "detailed_intensity",
-                                        "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": round(coef, 2)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח משולב של משך זמן ועצימות
-                    if len(activity_df) >= 4 and len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתני אינטראקציה בין משך זמן ועצימות
-                            combined_features = pd.DataFrame()
-                            
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # יצירת אינטראקציות
-                            for duration_type in ["duration_short", "duration_medium", "duration_long"]:
-                                for intensity_col in intensity_dummies.columns:
-                                    col_name = f"{duration_type}_{intensity_col}"
-                                    combined_features[col_name] = activity_df[duration_type] * intensity_dummies[intensity_col]
-                            
-                            # רגרסיה לינארית אם יש מספיק משתנים
-                            if combined_features.shape[1] > 0:
-                                X_combined = combined_features
-                                y_combined = activity_df["mood_after"]
-                                
-                                combined_model = LinearRegression()
-                                combined_model.fit(X_combined, y_combined)
-                                
-                                # חילוץ המקדמים המשמעותיים
-                                for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.2:
-                                        # פירוק שם התכונה
-                                        parts = feature_name.split("_")
-                                        duration_type = parts[1]  # short, medium, long
-                                        intensity_value = parts[-1]  # ערך העצימות
-                                        
-                                        # הגדרת תיאור משך הזמן
-                                        duration_desc = "less than 30 minutes" if duration_type == "short" else "between 30-60 minutes" if duration_type == "medium" else "more than 60 minutes"
-                                        
-                                        result.append({
-                                            "feature_type": "detailed_combo",
-                                            "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": round(coef, 2)
-                                        })
-                        except:
-                            # במקרה של בעיה, המשך
-                            pass
+                        # פענוח שם התכונה
+                        if feature_name.startswith("activity_"):
+                            activity_name = feature_name.replace("activity_", "")
+                            result.append({
+                                "feature_type": "detailed_activity",
+                                "feature_value": f"{activity_name} activity",
+                                "effect": round(coef, 2)
+                            })
+                        elif feature_name.startswith("intensity_"):
+                            intensity_name = feature_name.replace("intensity_", "")
+                            result.append({
+                                "feature_type": "detailed_intensity", 
+                                "feature_value": f"{intensity_name} intensity activity",
+                                "effect": round(coef, 2)
+                            })
+                        elif feature_name.startswith("duration_"):
+                            duration_type = feature_name.replace("duration_", "")
+                            duration_desc = "less than 30 minutes" if duration_type == "short" else "30-60 minutes" if duration_type == "medium" else "more than 60 minutes"
+                            result.append({
+                                "feature_type": "detailed_duration",
+                                "feature_value": f"Activity {duration_desc}",
+                                "effect": round(coef, 2)
+                            })
         
         except Exception as e:
             # במקרה של שגיאה, המשך עם התוצאות הקיימות
