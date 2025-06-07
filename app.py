@@ -1259,7 +1259,7 @@ def nutrition_analysis_summary(mood_field):
             nutrient_insights_lines_html.append(line_html)
         
         nutrient_insights_html_section = f"""
-        <h2🍴 <strong>Nutrition impact on {mood_field}</strong></h2>
+        <h2>🍴 <strong>Nutrition impact on {mood_field}</strong></h2>
         {"".join(nutrient_insights_lines_html)}
         """
         
