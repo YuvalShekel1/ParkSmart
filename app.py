@@ -1114,6 +1114,26 @@ def analyze_symptom_patterns(data, mood_field):
     except Exception as e:
         return f"Error in symptom pattern analysis: {str(e)}"
 
+def determine_colors(effect, mood_field):
+    """
+    Helper function to determine if an effect is positive or negative
+    based on the mood field.
+    """
+    mood_field_lower = mood_field.lower()
+    if "mood" in mood_field_lower or "well-being" in mood_field_lower:
+        # For mood/well-being, positive effect is good (increases)
+        is_positive = effect > 0
+        is_negative = effect < 0
+    elif "parkinson" in mood_field_lower or "symptom" in mood_field_lower:
+        # For Parkinson's/symptoms, negative effect (decrease) is good
+        is_positive = effect < 0
+        is_negative = effect > 0
+    else:
+        # Default to positive effect being good if not specified
+        is_positive = effect > 0
+        is_negative = effect < 0
+    return is_positive, is_negative
+
 def nutrition_analysis_summary(mood_field):
     """
     ניתוח השפעת התזונה על מצב הרוח/פרקינסון באמצעות רגרסיה לינארית
@@ -1198,12 +1218,15 @@ def nutrition_analysis_summary(mood_field):
             
             # חילוץ המקדמים
             for nutrient_col, coef in zip(nutrient_cols, nutrient_model.coef_):
-                if abs(coef) >= 0.05:  # רק מקדמים משמעותיים
-                    nutrient_result.append({
-                        "feature_type": "nutrient",
-                        "feature_value": nutrients[nutrient_col],
-                        "effect": round(coef, 2)
-                    })
+                is_positive, is_negative = determine_colors(coef, mood_field)
+                nutrient_result.append({
+                    "feature_type": "nutrient",
+                    "feature_value": nutrients[nutrient_col],
+                    "effect": round(coef, 2),
+                    "is_positive": is_positive,
+                    "is_negative": is_negative,
+                    "is_significant": abs(coef) >= 0.05 # Add significance for sorting
+                })
         
         # ניתוח מזונות ספציפיים עם רגרסיה לינארית
         food_result = []
@@ -1212,7 +1235,7 @@ def nutrition_analysis_summary(mood_field):
         common_foods = df['food'].value_counts()
         common_foods = common_foods[common_foods >= 2]
         
-        if len(common_foods) >= 2:  # צריך לפחות 2 סוגי מזון שונים
+        if len(common_foods) >= 2: # צריך לפחות 2 סוגי מזון שונים
             # יצירת משתנים דמי למזונות
             food_dummies = pd.get_dummies(df['food'], prefix='food')
             
@@ -1222,47 +1245,58 @@ def nutrition_analysis_summary(mood_field):
             
             # חילוץ המקדמים
             for food_col, coef in zip(food_dummies.columns, food_model.coef_):
-                if abs(coef) >= 0.1:  # רק מקדמים משמעותיים
-                    food_name = food_col.replace('food_', '')
-                    food_result.append({
-                        "feature_type": "specific_food",
-                        "feature_value": food_name,
-                        "effect": round(coef, 2)
-                    })
+                is_positive, is_negative = determine_colors(coef, mood_field)
+                food_name = food_col.replace('food_', '')
+                food_result.append({
+                    "feature_type": "specific_food",
+                    "feature_value": food_name,
+                    "effect": round(coef, 2),
+                    "is_positive": is_positive,
+                    "is_negative": is_negative,
+                    "is_significant": abs(coef) >= 0.1 # Add significance for sorting
+                })
         
-        # מיון התוצאות של כל קבוצה בנפרד לפי גודל ההשפעה (מוחלט)
-        nutrient_result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
-        food_result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
-        
+        # Custom sorting key for nutrient_result and food_result
+        def sort_key(item):
+            if item["is_positive"] and item["is_significant"]:
+                return (0, -abs(item.get("effect", 0)))  # Green, then by effect magnitude (desc)
+            elif item["is_negative"] and item["is_significant"]:
+                return (1, -abs(item.get("effect", 0)))  # Red, then by effect magnitude (desc)
+            else:
+                return (2, 0)  # Black (no significant impact)
+
+        nutrient_result.sort(key=sort_key)
+        food_result.sort(key=sort_key)
+            
         mood_field_lower = mood_field.lower()
-        
+            
         # --- בניית ה-HTML עבור רכיבים תזונתיים ---
         nutrient_insights_lines_html = []
         for item in nutrient_result:
             feature_value = item.get("feature_value", "")
             effect = item.get("effect")
             effect_str = f"{abs(effect)/5*100:.1f}%"
-            
-            is_positive, is_negative = determine_colors(effect, mood_field)
+            is_positive = item["is_positive"]
+            is_negative = item["is_negative"]
+            is_significant = item["is_significant"]
             
             # שימוש ביוניקוד וב-<span> עם סגנון ישיר לצבעים במקום Markdown
-            if abs(effect) < 0.05:
+            if not is_significant:
                 line_html = f"<p>&#x26AB; <strong>{feature_value}</strong>: no significant impact</p>" # Black circle
             elif is_positive:
-                direction = "increases" if effect > 0 else "decreases"
-                # הדגשה של food_name ו-feature_value
+                direction = "increases" if effect > 0 else "decreases" # This direction is for actual effect value, not necessarily "good" or "bad"
                 line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
             else:  # is_negative
                 direction = "increases" if effect > 0 else "decreases"
                 line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
             
             nutrient_insights_lines_html.append(line_html)
-        
+            
         nutrient_insights_html_section = f"""
         <h2>🍴 <strong>Nutrition impact on {mood_field}</strong></h2>
         {"".join(nutrient_insights_lines_html)}
         """
-        
+            
         # --- בניית ה-HTML עבור מזונות ספציפיים ---
         food_insights_html_section = ""
         if food_result:
@@ -1271,26 +1305,26 @@ def nutrition_analysis_summary(mood_field):
                 feature_value = item.get("feature_value", "")
                 effect = item.get("effect")
                 effect_str = f"{abs(effect)/5*100:.1f}%"
+                is_positive = item["is_positive"]
+                is_negative = item["is_negative"]
+                is_significant = item["is_significant"]
                 
-                is_positive, is_negative = determine_colors(effect, mood_field)
-                
-                if abs(effect) < 0.05:
+                if not is_significant:
                     line_html = f"<p>&#x26AB; <strong>{feature_value}</strong>: no significant impact</p>"
                 elif is_positive:
                     direction = "increases" if effect > 0 else "decreases"
-                    # כאן אנו מדגישים את food_name, כפי שביקשת
                     line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
                 else:  # is_negative
                     direction = "increases" if effect > 0 else "decreases"
                     line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{feature_value}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
-                
+                    
                 food_insights_lines_html.append(line_html)
-            
+                
             food_insights_html_section = f"""
             <h2>🍽️ Detailed Food Patterns</h2>
             {"".join(food_insights_lines_html)}
             """
-        
+            
         # --- שילוב כל החלקים במבנה HTML סופי ---
         # בדיקה אם יש תוכן משמעותי לפני בניית ה-HTML
         if not nutrient_insights_lines_html and not food_insights_lines_html:
