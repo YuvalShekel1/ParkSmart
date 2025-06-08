@@ -608,7 +608,7 @@ def analyze_activity_patterns(data, mood_field):
                             duration_labels = ["short", "medium", "long"]
                             for i, coef in enumerate(duration_model.coef_):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.1:
+                                if abs(coef) >= 0.2:
                                     duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
                                     result.append({
                                         "feature_type": "detailed_duration",
@@ -638,7 +638,7 @@ def analyze_activity_patterns(data, mood_field):
                             # חילוץ המקדמים
                             for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.1:
+                                if abs(coef) >= 0.2:
                                     intensity_value = intensity_name.split("_")[-1]
                                     result.append({
                                         "feature_type": "detailed_intensity",
@@ -674,7 +674,7 @@ def analyze_activity_patterns(data, mood_field):
                                 
                                 # חילוץ המקדמים המשמעותיים
                                 for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.1:
+                                    if abs(coef) >= 0.2:
                                         # פירוק שם התכונה
                                         parts = feature_name.split("_")
                                         duration_type = parts[1]  # short, medium, long
@@ -892,7 +892,7 @@ def analyze_medication_patterns(data, mood_field):
                                 time_windows = ["0-1 hour", "1-2 hours", "2-4 hours", "4+ hours"]
                                 for i, coef in enumerate(time_model.coef_):
                                     # בדוק אם ההשפעה משמעותית
-                                    if abs(coef) >= 0.1:
+                                    if abs(coef) >= 0.2:
                                         result.append({
                                             "feature_type": "time_window",
                                             "feature_value": f"{med} within {time_windows[i]}",
@@ -963,7 +963,7 @@ def analyze_medication_patterns(data, mood_field):
                     
                     # חילוץ המקדמים
                     for seq_name, coef in zip(X_seq.columns, seq_model.coef_):
-                        if abs(coef) >= 0.1:  # רק מקדמים משמעותיים
+                        if abs(coef) >= 0.2:  # רק מקדמים משמעותיים
                             result.append({
                                 "feature_type": "medication_sequence",
                                 "feature_value": seq_name,
