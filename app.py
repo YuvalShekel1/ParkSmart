@@ -1631,135 +1631,71 @@ def determine_colors(effect, mood_field):
 
 
 def symptom_analysis_summary(mood_field):
-  """
-
-    מציג סיכום של ניתוח הסימפטומים עם צבעים, בדומה לניתוח התרופות והפעילויות
-
-    """
-
-    if not translated_data_global:
-
-        return "Please upload and process data first."
-
-    
-
-    # ניתוח מתקדם של דפוסים בסימפטומים
-
-    advanced_analysis = analyze_symptom_patterns(translated_data_global, mood_field)
-
-    
-
-    if isinstance(advanced_analysis, str):
-
-        return advanced_analysis
-
-    
-
-    if not advanced_analysis:
-
-        return "No symptom patterns found."
-
-    
-
-    # עיבוד התובנות - כל התובנות יבנו במקטע HTML אחד
-
-    mood_field_lower = mood_field.lower()
-
-    
-
-    all_insights_html_lines = []
-
-
-
-    for item in advanced_analysis:
-
-        feature_value = item.get("feature_value", "")
-
-        effect = item.get("effect")
-
-        effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
-
-        
-
-        # התווית היא שם הסימפטום
-
-        label = feature_value
-
-        
-
-        # קביעת כיוון והצבע לפי סוג שדה המצב
-
-        is_positive, is_negative = determine_colors(effect, mood_field)
-
-        direction = "increases" if effect > 0 else "decreases"
-
-        
-
-        # Construct HTML line for all insights
-
-        if abs(effect) < 0.05:
-
-            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
-
-        elif is_positive:
-
-            line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
-
-        else: # is_negative
-
-            line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
-
-        
-
-        all_insights_html_lines.append(line_html)
-
-    
-
-    # בניית החלק הראשי של ה-HTML (כל התובנות בעמודה אחת)
-
-    main_symptom_insights_html_section = f"""
-
-    <h2>🩺 <strong>Symptom impact on {mood_field}</strong></h2>
-
-    {"".join(all_insights_html_lines)}
-
-    """ if all_insights_html_lines else ""
-
-
-
-    # Handle cases where no patterns at all are found
-
-    if not all_insights_html_lines:
-
-        return "No significant symptom patterns found."
-
-
-
-    # Final HTML output structure - Use only ONE column-content div
-
-    final_html_output = f"""
-
-    <div id="symptom-analysis-container" class="svelte-vuh1yp">
-
-        <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
-
-            <span class="md svelte-7ddecg prose">
-
-                <div class="column-content"> 
-
-                    {main_symptom_insights_html_section}
-
-                </div>
-
-            </span>
-
-        </div>
-
-    </div>
-
-    """
-
-    return final_html_output
+    """
+    מציג סיכום של ניתוח הסימפטומים עם צבעים, בדומה לניתוח התרופות והפעילויות
+    """
+    if not translated_data_global:
+        return "Please upload and process data first."
+    
+    # ניתוח מתקדם של דפוסים בסימפטומים
+    advanced_analysis = analyze_symptom_patterns(translated_data_global, mood_field)
+    
+    if isinstance(advanced_analysis, str):
+        return advanced_analysis
+    
+    if not advanced_analysis:
+        return "No symptom patterns found."
+    
+    # עיבוד התובנות - כל התובנות יבנו במקטע HTML אחד
+    mood_field_lower = mood_field.lower()
+    
+    all_insights_html_lines = []
+
+    for item in advanced_analysis:
+        feature_value = item.get("feature_value", "")
+        effect = item.get("effect")
+        effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
+        
+        # התווית היא שם הסימפטום
+        label = feature_value
+        
+        # קביעת כיוון והצבע לפי סוג שדה המצב
+        is_positive, is_negative = determine_colors(effect, mood_field)
+        direction = "increases" if effect > 0 else "decreases"
+        
+        # Construct HTML line for all insights
+        if abs(effect) < 0.05:
+            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
+        elif is_positive:
+            line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+        else: # is_negative
+            line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+        
+        all_insights_html_lines.append(line_html)
+    
+    # בניית החלק הראשי של ה-HTML (כל התובנות בעמודה אחת)
+    main_symptom_insights_html_section = f"""
+    <h2>🩺 <strong>Symptom impact on {mood_field}</strong></h2>
+    {"".join(all_insights_html_lines)}
+    """ if all_insights_html_lines else ""
+
+    # Handle cases where no patterns at all are found
+    if not all_insights_html_lines:
+        return "No significant symptom patterns found."
+
+    # Final HTML output structure - Use only ONE column-content div
+    final_html_output = f"""
+    <div id="symptom-analysis-container" class="svelte-vuh1yp">
+        <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
+            <span class="md svelte-7ddecg prose">
+                <div class="column-content"> 
+                    {main_symptom_insights_html_section}
+                </div>
+            </span>
+        </div>
+    </div>
+    """
+    return final_html_output
     
 # פונקציות עיבוד קובץ
 def upload_json(file_obj):
