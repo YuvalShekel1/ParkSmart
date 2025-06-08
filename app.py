@@ -1304,7 +1304,7 @@ def nutrition_analysis_summary(mood_field):
             for item in food_result:
                 feature_value = item.get("feature_value", "")
                 effect = item.get("effect")
-                effect_str = f"{abs(effect) * 10%"}
+                effect_str = f"{abs(effect) * 10}%"
                 is_positive = item["is_positive"]
                 is_negative = item["is_negative"]
                 is_significant = item["is_significant"]
