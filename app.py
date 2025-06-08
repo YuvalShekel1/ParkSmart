@@ -608,7 +608,7 @@ def analyze_activity_patterns(data, mood_field):
                             duration_labels = ["short", "medium", "long"]
                             for i, coef in enumerate(duration_model.coef_):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
+                                if abs(coef) >= 0.1:
                                     duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
                                     result.append({
                                         "feature_type": "detailed_duration",
@@ -638,7 +638,7 @@ def analyze_activity_patterns(data, mood_field):
                             # חילוץ המקדמים
                             for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
+                                if abs(coef) >= 0.1:
                                     intensity_value = intensity_name.split("_")[-1]
                                     result.append({
                                         "feature_type": "detailed_intensity",
@@ -674,7 +674,7 @@ def analyze_activity_patterns(data, mood_field):
                                 
                                 # חילוץ המקדמים המשמעותיים
                                 for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.2:
+                                    if abs(coef) >= 0.1:
                                         # פירוק שם התכונה
                                         parts = feature_name.split("_")
                                         duration_type = parts[1]  # short, medium, long
