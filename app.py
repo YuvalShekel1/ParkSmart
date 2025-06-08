@@ -1569,10 +1569,72 @@ def medication_analysis_summary(mood_field):
     """
     return final_html_output
 
+def analyze_symptom_patterns(data, mood_field):
+    # This is a placeholder for your actual symptom analysis logic.
+    # It should return a list of dictionaries, where each dictionary
+    # has at least 'feature_value' (symptom name) and 'effect'.
+    # For demonstration, I'll return some dummy data.
+    if not data:
+        return []
+
+    # Example dummy data for demonstration
+    # In a real scenario, this would come from your analysis,
+    # including regression coefficients for symptom impacts.
+    
+    # You would typically have a more complex analysis here,
+    # involving symptom data, mood_field, and statistical models
+    # to determine the 'effect' of each symptom on the mood.
+    
+    # For now, let's create some sample effects:
+    sample_effects = [
+        {"feature_value": "Fatigue", "effect": 0.8},  # Positive effect on mood (e.g., increases it)
+        {"feature_value": "Anxiety", "effect": -1.2}, # Negative effect on mood (e.g., decreases it)
+        {"feature_value": "Tremor", "effect": 0.1},   # Small positive effect, likely not significant
+        {"feature_value": "Insomnia", "effect": -0.6},# Negative effect
+        {"feature_value": "Stiffness", "effect": 0.02} # Very small effect
+    ]
+
+    # Adjust effects based on mood_field to simulate how 'determine_colors' would react
+    if "parkinson" in mood_field.lower() or "symptom" in mood_field.lower():
+        # If it's a Parkinson's symptom, a positive effect means worsening, so good is negative
+        # Let's invert some effects for Parkinson's context for demonstration
+        for item in sample_effects:
+            if item["feature_value"] == "Tremor":
+                item["effect"] = 0.9 # Worsening tremor means higher effect value
+            elif item["feature_value"] == "Stiffness":
+                item["effect"] = 0.7
+            elif item["feature_value"] == "Fatigue":
+                item["effect"] = 0.5
+    
+    return sample_effects
+
+
+def determine_colors(effect, mood_field):
+    """
+    Helper function to determine if an effect is positive or negative
+    based on the mood field.
+    """
+    mood_field_lower = mood_field.lower()
+    if "mood" in mood_field_lower or "well-being" in mood_field_lower:
+        # For mood/well-being, positive effect is good (increases)
+        is_positive = effect > 0
+        is_negative = effect < 0
+    elif "parkinson" in mood_field_lower or "symptom" in mood_field_lower:
+        # For Parkinson's/symptoms, negative effect (decrease) is good
+        is_positive = effect < 0
+        is_negative = effect > 0
+    else:
+        # Default to positive effect being good if not specified
+        is_positive = effect > 0
+        is_negative = effect < 0
+    return is_positive, is_negative
+
+
 def symptom_analysis_summary(mood_field):
     """
     מציג סיכום של ניתוח הסימפטומים עם צבעים, בדומה לניתוח התרופות והפעילויות
     """
+    global translated_data_global
     if not translated_data_global:
         return "Please upload and process data first."
     
@@ -1585,31 +1647,61 @@ def symptom_analysis_summary(mood_field):
     if not advanced_analysis:
         return "No symptom patterns found."
     
-    # עיבוד התובנות - כל התובנות יבנו במקטע HTML אחד
+    # Enriching advanced_analysis with color and significance information
+    # and preparing for sorting
+    processed_insights = []
+    for item in advanced_analysis:
+        effect = item.get("effect")
+        is_positive, is_negative = determine_colors(effect, mood_field)
+        
+        # Define significance threshold for symptoms. You might want to adjust this.
+        # For simplicity, let's use 0.05 as a general threshold for symptoms too.
+        is_significant = abs(effect) >= 0.05 
+        
+        processed_insights.append({
+            "feature_value": item.get("feature_value", ""),
+            "effect": effect,
+            "is_positive": is_positive,
+            "is_negative": is_negative,
+            "is_significant": is_significant
+        })
+
+    # Custom sorting key for the processed insights
+    def sort_key(item):
+        if item["is_positive"] and item["is_significant"]:
+            return (0, -abs(item.get("effect", 0)))  # Green, then by effect magnitude (desc)
+        elif item["is_negative"] and item["is_significant"]:
+            return (1, -abs(item.get("effect", 0)))  # Red, then by effect magnitude (desc)
+        else:
+            return (2, 0)  # Black (no significant impact)
+
+    # Sort the processed insights
+    processed_insights.sort(key=sort_key)
+            
     mood_field_lower = mood_field.lower()
     
     all_insights_html_lines = []
 
-    for item in advanced_analysis:
+    for item in processed_insights: # Iterate through the sorted list
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
+        effect_str = f"{abs(effect)/5*100:.1f}%" 
         
-        # התווית היא שם הסימפטום
         label = feature_value
         
-        # קביעת כיוון והצבע לפי סוג שדה המצב
-        is_positive, is_negative = determine_colors(effect, mood_field)
+        is_positive = item["is_positive"]
+        is_negative = item["is_negative"]
+        is_significant = item["is_significant"]
         direction = "increases" if effect > 0 else "decreases"
         
         # Construct HTML line for all insights
-        if abs(effect) < 0.05:
+        if not is_significant: # Use is_significant directly for the black circle
             line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
         elif is_positive:
             line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
         else: # is_negative
             line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
-        
+            
         all_insights_html_lines.append(line_html)
     
     # בניית החלק הראשי של ה-HTML (כל התובנות בעמודה אחת)
