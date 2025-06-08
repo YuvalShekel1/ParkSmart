@@ -1635,7 +1635,7 @@ def symptom_analysis_summary(mood_field):
     """
     if not translated_data_global:
         return "Please upload and process data first."
-    
+        
     # ניתוח מתקדם של דפוסים בסימפטומים
     advanced_analysis = analyze_symptom_patterns(translated_data_global, mood_field)
     
@@ -1644,11 +1644,12 @@ def symptom_analysis_summary(mood_field):
     
     if not advanced_analysis:
         return "No symptom patterns found."
-    
+        
     # עיבוד התובנות - כל התובנות יבנו במקטע HTML אחד
     mood_field_lower = mood_field.lower()
     
-    all_insights_html_lines = []
+    # צור רשימה שתכיל מילונים עבור כל תובנה, כולל סוג הצבע למיון
+    insights_with_color_info = []
 
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
@@ -1662,16 +1663,32 @@ def symptom_analysis_summary(mood_field):
         is_positive, is_negative = determine_colors(effect, mood_field)
         direction = "increases" if effect > 0 else "decreases"
         
-        # Construct HTML line for all insights
+        line_html = ""
+        color_priority = 0 # 0 for green, 1 for red, 2 for black
+
         if abs(effect) < 0.05:
             line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
+            color_priority = 2 # Set priority for black
         elif is_positive:
             line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
+            color_priority = 0 # Set priority for green
         else: # is_negative
             line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
+            color_priority = 1 # Set priority for red
         
-        all_insights_html_lines.append(line_html)
+        insights_with_color_info.append({
+            "html": line_html,
+            "priority": color_priority,
+            "effect_abs": abs(effect) # גם נמיין לפי גודל ההשפעה בתוך כל קבוצת צבע
+        })
     
+    # מיון התובנות לפי סדר קדימות הצבעים: ירוק (0), אדום (1), שחור (2)
+    # ובתוך כל קבוצת צבע, מיין לפי גודל ההשפעה בסדר יורד
+    insights_with_color_info.sort(key=lambda x: (x["priority"], -x["effect_abs"]))
+
+    # כעת, בנה את רשימת מחרוזות ה-HTML מהרשימה הממוינת
+    all_insights_html_lines = [item["html"] for item in insights_with_color_info]
+
     # בניית החלק הראשי של ה-HTML (כל התובנות בעמודה אחת)
     main_symptom_insights_html_section = f"""
     <h2>🩺 <strong>Symptom impact on {mood_field}</strong></h2>
@@ -1687,7 +1704,7 @@ def symptom_analysis_summary(mood_field):
     <div id="symptom-analysis-container" class="svelte-vuh1yp">
         <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
             <span class="md svelte-7ddecg prose">
-                <div class="column-content"> 
+                <div class="column-content">  
                     {main_symptom_insights_html_section}
                 </div>
             </span>
