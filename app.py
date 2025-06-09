@@ -587,7 +587,7 @@ def analyze_activity_patterns(data, mood_field):
             result.append({
                 "feature_type": feature_type,
                 "feature_value": feature_value,
-                "effect": coef
+                "effect": round(coef, 2)
             })
 
         # ===== רגרסיה לינארית לניתוחים מפורטים =====
@@ -622,7 +622,7 @@ def analyze_activity_patterns(data, mood_field):
                                     result.append({
                                         "feature_type": "detailed_duration",
                                         "feature_value": f"{activity} {duration_desc}",
-                                        "effect": coef
+                                        "effect": round(coef, 2)
                                     })
                         except:
                             # במקרה של בעיה, המשך לניתוח הבא
@@ -652,7 +652,7 @@ def analyze_activity_patterns(data, mood_field):
                                     result.append({
                                         "feature_type": "detailed_intensity",
                                         "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": coef
+                                        "effect": round(coef, 2)
                                     })
                         except:
                             # במקרה של בעיה, המשך לניתוח הבא
@@ -695,7 +695,7 @@ def analyze_activity_patterns(data, mood_field):
                                         result.append({
                                             "feature_type": "detailed_combo",
                                             "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": coef
+                                            "effect": round(coef, 2)
                                         })
                         except:
                             # במקרה של בעיה, המשך
