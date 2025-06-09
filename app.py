@@ -587,7 +587,7 @@ def analyze_activity_patterns(data, mood_field):
             result.append({
                 "feature_type": feature_type,
                 "feature_value": feature_value,
-                "effect": round(coef, 2)
+                "effect": coef
             })
 
         # ===== רגרסיה לינארית לניתוחים מפורטים =====
@@ -617,12 +617,12 @@ def analyze_activity_patterns(data, mood_field):
                             duration_labels = ["medium", "long"]
                             for i, coef in enumerate(duration_model.coef_):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2 and abs(coef) < 20:
+                                if abs(coef) >= 0.2:
                                     duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
                                     result.append({
                                         "feature_type": "detailed_duration",
                                         "feature_value": f"{activity} {duration_desc}",
-                                        "effect": round(coef, 2)
+                                        "effect": coef
                                     })
                         except:
                             # במקרה של בעיה, המשך לניתוח הבא
@@ -652,7 +652,7 @@ def analyze_activity_patterns(data, mood_field):
                                     result.append({
                                         "feature_type": "detailed_intensity",
                                         "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": round(coef, 2)
+                                        "effect": coef
                                     })
                         except:
                             # במקרה של בעיה, המשך לניתוח הבא
@@ -695,7 +695,7 @@ def analyze_activity_patterns(data, mood_field):
                                         result.append({
                                             "feature_type": "detailed_combo",
                                             "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": round(coef, 2)
+                                            "effect": coef
                                         })
                         except:
                             # במקרה של בעיה, המשך
@@ -1400,7 +1400,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect):.2f}%"
+        effect_str = f"{abs(effect):.1f}%"
         # Determine label for display
         if feature_type == "activity_name":
             label = feature_value.strip().title()
