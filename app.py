@@ -606,7 +606,7 @@ def analyze_activity_patterns(data, mood_field):
                     # ניתוח לפי משך זמן
                     if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
                         # יצירת רגרסיה לינארית עם משתני משך זמן
-                        X_duration = activity_df[["duration_short", "duration_medium", "duration_long"]]
+                        X_duration = activity_df[["duration_medium", "duration_long"]]
                         y_duration = activity_df["mood_after"]
                         
                         try:
@@ -614,10 +614,10 @@ def analyze_activity_patterns(data, mood_field):
                             duration_model.fit(X_duration, y_duration)
                             
                             # חילוץ המקדמים
-                            duration_labels = ["short", "medium", "long"]
+                            duration_labels = ["medium", "long"]
                             for i, coef in enumerate(duration_model.coef_):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
+                                if abs(coef) >= 0.2 and abs(coef) < 20:
                                     duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
                                     result.append({
                                         "feature_type": "detailed_duration",
