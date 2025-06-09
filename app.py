@@ -51,6 +51,9 @@ translation_cache = {
     "דופיקר 125": "Dopicar 125",
     "דופיקר 175": "Dopicar 175",
     "דופיקר 250": "Dopicar 250",
+    "דופיקאר 250 מ\"ג": "Dopicar 250 mg",
+    "אזילקט 1 מ\"ג": "Azilect 1 mg",
+    "מעדן סויה בטעמים": "Flavored soy pudding",
     "קפה": "Coffee",
     "חצי פיתה עם חמאת בוטנים": "Half pita with peanut butter",
     "פלפל ומלפפון": "Pepper and cucumber",
@@ -59,6 +62,11 @@ translation_cache = {
     "סלמון עם פירה ואפונה": "Salmon with mashed potatoes and peas",
     "פיתה טחינה מלפפון עגבנייה ושניצל קטן": "Pita with tahini, cucumber, tomato and small schnitzel",
     "מעדן סויה אפרסק": "Peach soy pudding",
+    "קערת קורנפלקס עם חלב סויה וצימוקים חדש": "Bowl of cornflakes with soy milk and raisins",
+    "קפה אספרסו": "Espresso coffee",
+    "רבע טוסט בייגלה": "Quarter of a pretzel toast",
+    "אורז עם תבשיל טופו וכרובית": "Rice with tofu and cauliflower stew",
+    "טוסט עם ביצה קשה": "Toast with hard-boiled egg",
     "פלפל עם קוטג'": "Pepper with cottage cheese",
     "רבע פיתה עם ממרח בוטנים": "Quarter pita with peanut spread",
     "תפו\"א מבושלים שעועית ירוקה וקצת קינואה, 50 גרם עוף": "Boiled potatoes, green beans and a bit of quinoa with 50g chicken",
@@ -128,6 +136,7 @@ translation_cache = {
     "נסיעה לבית שאן": "Trip to Beit Shean",
     "סיור במוזיאון גולני": "Tour at Golani Museum",
     "עבודת גינה": "Garden work",
+
 }
 
 # מילון ערכים תזונתיים מורחב
