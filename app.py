@@ -570,19 +570,9 @@ def analyze_activity_patterns(data, mood_field):
 
         result = []
         for i, (name, coef) in enumerate(zip(feature_names, coefs)):
-            feature_type = ""
-            feature_value = ""
+            feature_type = "activity_name"
+            feature_value = name.replace("activity_", "")
             
-            if "activity_name" in name:
-                feature_type = "activity_name"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            elif "intensity" in name:
-                feature_type = "intensity"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            else:
-                feature_type = "duration"
-                feature_value = ""
-                
             result.append({
                 "feature_type": feature_type,
                 "feature_value": feature_value,
