@@ -1284,8 +1284,7 @@ def nutrition_analysis_summary(mood_field):
         for item in nutrient_result:
             feature_value = item.get("feature_value", "")
             effect = item.get("effect")
-            effect_percentage = min(abs(effect) * 10, 100)
-            effect_str = f"{effect_percentage:.1f}%"
+            effect_str = f"{abs(effect)/5*100:.1f}%"
             is_positive = item["is_positive"]
             is_negative = item["is_negative"]
             is_significant = item["is_significant"]
@@ -1306,20 +1305,7 @@ def nutrition_analysis_summary(mood_field):
         <h2>🍴 <strong>Nutrition impact on {mood_field}</strong></h2>
         {"".join(nutrient_insights_lines_html)}
         """
-        # סינון מזונות עם מעט נתונים
-        food_counts = {}
-        for item in translated_data_global.get("nutritions", []):
-            food_name = item.get("foodName", "")
-            if food_name:
-                food_counts[food_name] = food_counts.get(food_name, 0) + 1
-        
-        filtered_food_result = []
-        for item in food_result:
-            food_name = item.get("feature_value", "")
-            if food_counts.get(food_name, 0) >= 3:
-                filtered_food_result.append(item)
-        
-        food_result = filtered_food_result          
+            
         # --- בניית ה-HTML עבור מזונות ספציפיים ---
         food_insights_html_section = ""
         if food_result:
@@ -1327,8 +1313,7 @@ def nutrition_analysis_summary(mood_field):
             for item in food_result:
                 feature_value = item.get("feature_value", "")
                 effect = item.get("effect")
-                effect_percentage = min(abs(effect) * 10, 100)
-                effect_str = f"{effect_percentage:.1f}%"
+                effect_str = f"{abs(effect)/5*100:.1f}%"
                 is_positive = item["is_positive"]
                 is_negative = item["is_negative"]
                 is_significant = item["is_significant"]
@@ -1399,35 +1384,6 @@ def activity_analysis_summary(mood_field):
 
     if not advanced_analysis:
         return "No patterns found."
-    # סינון תובנות עם מעט נתונים
-    activity_counts = {}
-    for item in translated_data_global.get("activities", []):
-        activity_name = item.get("activityName", "")
-        if activity_name:
-            activity_counts[activity_name] = activity_counts.get(activity_name, 0) + 1
-    
-    filtered_analysis = []
-    for item in advanced_analysis:
-        feature_type = item.get("feature_type", "")
-        feature_value = item.get("feature_value", "")
-        
-        if feature_type == "activity_name":
-            if activity_counts.get(feature_value, 0) >= 3:
-                filtered_analysis.append(item)
-        elif feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-            base_activity = feature_value.split(" ")[0] + " " + feature_value.split(" ")[1] if " " in feature_value else feature_value
-            if activity_counts.get(base_activity, 0) >= 3:
-                filtered_analysis.append(item)
-        else:
-            if sum(activity_counts.values()) >= 5:
-                filtered_analysis.append(item)
-    
-    if len(filtered_analysis) < 2:
-        return "Not enough activity data for reliable analysis. Need at least 3 occurrences per activity type."
-    
-    advanced_analysis = filtered_analysis
-
-    
 
     mood_field_lower = mood_field.lower()
 
@@ -1444,8 +1400,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_percentage = min(abs(effect) * 10, 100)
-        effect_str = f"{effect_percentage:.1f}%"
+        effect_str = f"{abs(effect):.1f}%"
         # Determine label for display
         if feature_type == "activity_name":
             label = feature_value.strip().title()
@@ -1533,32 +1488,7 @@ def medication_analysis_summary(mood_field):
     
     if not advanced_analysis:
         return "No medication patterns found."
-    # סינון תובנות עם מעט נתונים
-    med_counts = {}
-    medications_data = translated_data_global.get("medications", []) or translated_data_global.get("medicines", [])
     
-    for item in medications_data:
-        med_name = item.get("name", "")
-        if med_name:
-            med_counts[med_name] = med_counts.get(med_name, 0) + 1
-    
-    filtered_analysis = []
-    for item in advanced_analysis:
-        feature_type = item.get("feature_type", "")
-        feature_value = item.get("feature_value", "")
-        
-        if feature_type == "medication_name":
-            clean_name = feature_value.replace("name_", "") if feature_value.startswith("name_") else feature_value
-            if med_counts.get(clean_name, 0) >= 3:
-                filtered_analysis.append(item)
-        elif feature_type in ["time_window", "medication_sequence"]:
-            if sum(med_counts.values()) >= 10:
-                filtered_analysis.append(item)
-    
-    if len(filtered_analysis) < 2:
-        return "Not enough medication data for reliable analysis. Need at least 3 occurrences per medication."
-    
-    advanced_analysis = filtered_analysis
     # עיבוד התובנות בדיוק כמו בפעילויות
     mood_field_lower = mood_field.lower()
     
@@ -1574,8 +1504,7 @@ def medication_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_percentage = min(abs(effect) * 10, 100)
-        effect_str = f"{effect_percentage:.1f}%"
+        effect_str = f"{abs(effect)/5*100:.1f}%"
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
         if feature_type == "medication_name":
@@ -1724,23 +1653,6 @@ def symptom_analysis_summary(mood_field):
     
     if not advanced_analysis:
         return "No symptom patterns found."
-    # סינון תובנות עם מעט נתונים
-    symptom_counts = {}
-    for item in translated_data_global.get("symptoms", []):
-        symptom_type = item.get("type", "")
-        if symptom_type and symptom_type not in ["Parkinson's State", "My Mood", "Physical State"]:
-            symptom_counts[symptom_type] = symptom_counts.get(symptom_type, 0) + 1
-    
-    filtered_analysis = []
-    for item in advanced_analysis:
-        feature_value = item.get("feature_value", "")
-        if symptom_counts.get(feature_value, 0) >= 3:
-            filtered_analysis.append(item)
-    
-    if len(filtered_analysis) < 2:
-        return "Not enough symptom data for reliable analysis. Need at least 3 occurrences per symptom type."
-    
-    advanced_analysis = filtered_analysis
         
     # עיבוד התובנות - כל התובנות יבנו במקטע HTML אחד
     mood_field_lower = mood_field.lower()
@@ -1751,8 +1663,7 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_percentage = min(abs(effect) * 10, 100)
-        effect_str = f"{effect_percentage:.1f}%"
+        effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום
         label = feature_value
