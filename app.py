@@ -1400,7 +1400,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect):.1f}%"
+        effect_str = f"{abs(effect)/5*100:.1f}%"
         # Determine label for display
         if feature_type == "activity_name":
             label = feature_value.strip().title()
