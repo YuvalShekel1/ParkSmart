@@ -550,29 +550,40 @@ def analyze_activity_patterns(data, mood_field):
             activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
             
         # סינון רק פעילויות עם לפחות 2 תצפיות
-        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 3]
+        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
         
         if len(filtered_data) < 3:
             return "Not enough matched data after filtering (minimum 2 samples per activity type)."
 
         df = pd.DataFrame(filtered_data)
-        
-        # רגרסיה רק לפי activity_name
-        X = pd.get_dummies(df["activity_name"], prefix="activity")
+        X = df[["activity_name", "duration", "intensity"]]
         y = df["mood_after"]
-        
-        model = LinearRegression()
+
+        preprocessor = ColumnTransformer([
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+        ], remainder='passthrough')
+
+        model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
 
-
-        coefs = model.coef_
-        feature_names = X.columns
+        coefs = model.named_steps["linearregression"].coef_
+        feature_names = model.named_steps["columntransformer"].get_feature_names_out()
 
         result = []
         for i, (name, coef) in enumerate(zip(feature_names, coefs)):
-            feature_type = "activity_name"
-            feature_value = name.replace("activity_", "")
+            feature_type = ""
+            feature_value = ""
             
+            if "activity_name" in name:
+                feature_type = "activity_name"
+                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
+            elif "intensity" in name:
+                feature_type = "intensity"
+                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
+            else:
+                feature_type = "duration"
+                feature_value = ""
+                
             result.append({
                 "feature_type": feature_type,
                 "feature_value": feature_value,
@@ -701,7 +712,6 @@ def analyze_activity_patterns(data, mood_field):
         return result
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
-
 
 def analyze_medication_patterns(data, mood_field):
     """
