@@ -556,15 +556,14 @@ def analyze_activity_patterns(data, mood_field):
             return "Not enough matched data after filtering (minimum 2 samples per activity type)."
 
         df = pd.DataFrame(filtered_data)
-        X = df[["activity_name", "duration", "intensity"]]
+        
+        # רגרסיה רק לפי activity_name
+        X = pd.get_dummies(df["activity_name"], prefix="activity")
         y = df["mood_after"]
-
-        preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
-
-        model = make_pipeline(preprocessor, LinearRegression())
+        
+        model = LinearRegression()
         model.fit(X, y)
+
 
         coefs = model.named_steps["linearregression"].coef_
         feature_names = model.named_steps["columntransformer"].get_feature_names_out()
