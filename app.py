@@ -550,7 +550,7 @@ def analyze_activity_patterns(data, mood_field):
             activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
             
         # סינון רק פעילויות עם לפחות 2 תצפיות
-        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
+        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 3]
         
         if len(filtered_data) < 3:
             return "Not enough matched data after filtering (minimum 2 samples per activity type)."
