@@ -500,26 +500,25 @@ def analyze_activity_patterns(data, mood_field):
         return "Not enough data for activity pattern analysis."
 
     try:
-        activity_data = []
-        for item in data.get("activities", []):
-            if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
-                name = item["activityName"]
-                if not name or len(name) < 2:
-                    continue
-                activity_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "activity_name": name,
-                    "duration": item["duration"],
-                    "intensity": item["intensity"]
-                })
+        activity_data = [
+            {
+                "date": pd.to_datetime(item["date"]),
+                "activity_name": item["activityName"],
+                "duration": item["duration"],
+                "intensity": item["intensity"]
+            }
+            for item in data.get("activities", [])
+            if all(k in item for k in ["date", "activityName", "duration", "intensity"])
+        ]
 
-        mood_data = []
-        for item in data["feelings"]:
-            if "date" in item and item.get("type") == mood_field and "severity" in item:
-                mood_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "severity": item["severity"]
-                })
+        mood_data = [
+            {
+                "date": pd.to_datetime(item["date"]),
+                "severity": item["severity"]
+            }
+            for item in data["feelings"]
+            if item.get("type") == mood_field and "date" in item and "severity" in item
+        ]
 
         if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
@@ -528,190 +527,102 @@ def analyze_activity_patterns(data, mood_field):
         mood_df = pd.DataFrame(mood_data)
 
         matched_data = []
-        for _, act in activity_df.iterrows():
-            end_of_day = act["date"].replace(hour=23, minute=59, second=59)
-            relevant_moods = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["date"] <= end_of_day)]
-            if not relevant_moods.empty:
-                avg_mood = relevant_moods["severity"].mean()
+        for _, row in activity_df.iterrows():
+            same_day_moods = mood_df[
+                (mood_df["date"] >= row["date"]) &
+                (mood_df["date"].dt.date == row["date"].date())
+            ]
+            if not same_day_moods.empty:
                 matched_data.append({
-                    "activity_name": act["activity_name"],
-                    "duration": act["duration"],
-                    "intensity": act["intensity"],
-                    "mood_after": avg_mood
+                    "activity_name": row["activity_name"],
+                    "duration": row["duration"],
+                    "intensity": row["intensity"],
+                    "mood_after": same_day_moods["severity"].mean()
                 })
 
         if len(matched_data) < 3:
             return "Not enough matched activity-mood data for analysis."
-            
-        # ספירת מספר התצפיות לכל סוג פעילות
-        activity_counts = {}
-        for item in matched_data:
-            act_name = item["activity_name"]
-            activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
-            
-        # סינון רק פעילויות עם לפחות 2 תצפיות
-        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
-        
-        if len(filtered_data) < 3:
-            return "Not enough matched data after filtering (minimum 2 samples per activity type)."
 
-        df = pd.DataFrame(filtered_data)
-        X = df[["activity_name", "duration", "intensity"]]
-        y = df["mood_after"]
-
-        preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
-
-        model = make_pipeline(preprocessor, LinearRegression())
-        model.fit(X, y)
-
-        coefs = model.named_steps["linearregression"].coef_
-        feature_names = model.named_steps["columntransformer"].get_feature_names_out()
-
+        df = pd.DataFrame(matched_data)
         result = []
-        for i, (name, coef) in enumerate(zip(feature_names, coefs)):
-            feature_type = ""
-            feature_value = ""
-            
-            if "activity_name" in name:
-                feature_type = "activity_name"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            elif "intensity" in name:
-                feature_type = "intensity"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            else:
-                feature_type = "duration"
-                feature_value = ""
-                
-            result.append({
-                "feature_type": feature_type,
-                "feature_value": feature_value,
-                "effect": round(coef, 2)
-            })
 
-        # ===== רגרסיה לינארית לניתוחים מפורטים =====
+        ### 1. ניתוח לפי activity_name ###
         try:
-            # יצירת משתנים דמי למשך זמן
+            df_filtered = df[df["activity_name"].notna()]
+            common_activities = df_filtered["activity_name"].value_counts()
+            common_activities = common_activities[common_activities >= 2]
+            if len(common_activities) >= 2:
+                X = pd.get_dummies(df_filtered["activity_name"], prefix="activity")
+                y = df_filtered["mood_after"]
+                model = LinearRegression().fit(X, y)
+                for col, coef in zip(X.columns, model.coef_):
+                    result.append({
+                        "feature_type": "activity_name",
+                        "feature_value": col.replace("activity_", ""),
+                        "effect": round(coef, 2)
+                    })
+        except Exception as e:
+            print("Activity name regression error:", e)
+
+        ### 2. ניתוח לפי intensity ###
+        try:
+            if df["intensity"].nunique() >= 2:
+                X = pd.get_dummies(df["intensity"], prefix="intensity")
+                y = df["mood_after"]
+                model = LinearRegression().fit(X, y)
+                for col, coef in zip(X.columns, model.coef_):
+                    result.append({
+                        "feature_type": "intensity",
+                        "feature_value": col.replace("intensity_", ""),
+                        "effect": round(coef, 2)
+                    })
+        except Exception as e:
+            print("Intensity regression error:", e)
+
+        ### 3. ניתוח לפי duration ###
+        try:
             df["duration_short"] = (df["duration"] < 30).astype(int)
             df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
             df["duration_long"] = (df["duration"] >= 60).astype(int)
-            
-            # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
-            for activity in df["activity_name"].unique():
-                activity_df = df[df["activity_name"] == activity].copy()
-                
-                # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if len(activity_df) >= 3:
-                    # ניתוח לפי משך זמן
-                    if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
-                        # יצירת רגרסיה לינארית עם משתני משך זמן
-                        X_duration = activity_df[["duration_medium", "duration_long"]]
-                        y_duration = activity_df["mood_after"]
-                        
-                        try:
-                            duration_model = LinearRegression()
-                            duration_model.fit(X_duration, y_duration)
-                            
-                            # חילוץ המקדמים
-                            duration_labels = ["medium", "long"]
-                            for i, coef in enumerate(duration_model.coef_):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
-                                    result.append({
-                                        "feature_type": "detailed_duration",
-                                        "feature_value": f"{activity} {duration_desc}",
-                                        "effect": round(coef, 2)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח לפי עצימות
-                    if len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # מיזוג עם נתוני המצב רוח
-                            intensity_data = pd.concat([intensity_dummies, activity_df["mood_after"]], axis=1)
-                            
-                            # רגרסיה לינארית
-                            X_intensity = intensity_data.drop("mood_after", axis=1)
-                            y_intensity = intensity_data["mood_after"]
-                            
-                            intensity_model = LinearRegression()
-                            intensity_model.fit(X_intensity, y_intensity)
-                            
-                            # חילוץ המקדמים
-                            for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    intensity_value = intensity_name.split("_")[-1]
-                                    result.append({
-                                        "feature_type": "detailed_intensity",
-                                        "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": round(coef, 2)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח משולב של משך זמן ועצימות
-                    if len(activity_df) >= 4 and len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתני אינטראקציה בין משך זמן ועצימות
-                            combined_features = pd.DataFrame()
-                            
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # יצירת אינטראקציות
-                            for duration_type in ["duration_short", "duration_medium", "duration_long"]:
-                                for intensity_col in intensity_dummies.columns:
-                                    col_name = f"{duration_type}_{intensity_col}"
-                                    combined_features[col_name] = activity_df[duration_type] * intensity_dummies[intensity_col]
-                            
-                            # רגרסיה לינארית אם יש מספיק משתנים
-                            if combined_features.shape[1] > 0:
-                                X_combined = combined_features
-                                y_combined = activity_df["mood_after"]
-                                
-                                combined_model = LinearRegression()
-                                combined_model.fit(X_combined, y_combined)
-                                
-                                # חילוץ המקדמים המשמעותיים
-                                for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.2:
-                                        # פירוק שם התכונה
-                                        parts = feature_name.split("_")
-                                        duration_type = parts[1]  # short, medium, long
-                                        intensity_value = parts[-1]  # ערך העצימות
-                                        
-                                        # הגדרת תיאור משך הזמן
-                                        duration_desc = "less than 30 minutes" if duration_type == "short" else "between 30-60 minutes" if duration_type == "medium" else "more than 60 minutes"
-                                        
-                                        result.append({
-                                            "feature_type": "detailed_combo",
-                                            "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": round(coef, 2)
-                                        })
-                        except:
-                            # במקרה של בעיה, המשך
-                            pass
-        
+            X = df[["duration_medium", "duration_long"]]
+            y = df["mood_after"]
+            model = LinearRegression().fit(X, y)
+            for label, coef in zip(["30-59 minutes", "60+ minutes"], model.coef_):
+                result.append({
+                    "feature_type": "duration",
+                    "feature_value": label,
+                    "effect": round(coef, 2)
+                })
         except Exception as e:
-            # במקרה של שגיאה, המשך עם התוצאות הקיימות
-            print(f"Error in detailed activity analysis: {str(e)}")
-            pass
+            print("Duration regression error:", e)
 
-        # מיון התוצאות לפי גודל ההשפעה (מוחלט)
-        result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
+        ### 4. ניתוח משולב duration + intensity ###
+        try:
+            intensity_dummies = pd.get_dummies(df["intensity"], prefix="intensity")
+            interaction_features = pd.DataFrame()
+            for d_col in ["duration_short", "duration_medium", "duration_long"]:
+                for i_col in intensity_dummies.columns:
+                    col_name = f"{d_col}_{i_col}"
+                    interaction_features[col_name] = df[d_col] * intensity_dummies[i_col]
 
-        return result
+            if interaction_features.shape[1] >= 2:
+                X = interaction_features
+                y = df["mood_after"]
+                model = LinearRegression().fit(X, y)
+                for col, coef in zip(X.columns, model.coef_):
+                    result.append({
+                        "feature_type": "combo",
+                        "feature_value": col.replace("duration_", "").replace("intensity_", "").replace("_", " "),
+                        "effect": round(coef, 2)
+                    })
+        except Exception as e:
+            print("Interaction regression error:", e)
+
+        return sorted(result, key=lambda x: abs(x["effect"]), reverse=True)
+
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
+
 
 def analyze_medication_patterns(data, mood_field):
     """
