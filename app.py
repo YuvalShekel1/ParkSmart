@@ -1286,7 +1286,7 @@ def nutrition_analysis_summary(mood_field):
         for item in nutrient_result:
             feature_value = item.get("feature_value", "")
             effect = item.get("effect")
-            effect_str = f"{abs(effect)/5*100:.1f}%"
+            effect_str = f"{abs(effect)/5*100:.2f}%"
             is_positive = item["is_positive"]
             is_negative = item["is_negative"]
             is_significant = item["is_significant"]
@@ -1315,7 +1315,7 @@ def nutrition_analysis_summary(mood_field):
             for item in food_result:
                 feature_value = item.get("feature_value", "")
                 effect = item.get("effect")
-                effect_str = f"{abs(effect)/5*100:.1f}%"
+                effect_str = f"{abs(effect)/5*100:.2f}%"
                 is_positive = item["is_positive"]
                 is_negative = item["is_negative"]
                 is_significant = item["is_significant"]
@@ -1402,7 +1402,7 @@ def activity_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%"
+        effect_str = f"{abs(effect)/5*100:.2f}%"
         # Determine label for display
         if feature_type == "activity_name":
             label = feature_value.strip().title()
@@ -1506,7 +1506,7 @@ def medication_analysis_summary(mood_field):
         feature_type = item.get("feature_type", "")
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%"
+        effect_str = f"{abs(effect)/5*100:.2f}%"
         
         # קביעת הכותרת/תווית להצגה ומסירת המילה "name_"
         if feature_type == "medication_name":
@@ -1665,7 +1665,7 @@ def symptom_analysis_summary(mood_field):
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%" # עיגול לספרה אחת אחרי הנקודה
+        effect_str = f"{abs(effect)/5*100:.2f}%" # עיגול לספרה אחת אחרי הנקודה
         
         # התווית היא שם הסימפטום
         label = feature_value
