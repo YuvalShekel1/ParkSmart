@@ -562,7 +562,8 @@ def analyze_activity_patterns(data, mood_field):
             df["duration_short"] = (df["duration"] < 30).astype(int)
             df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
             df["duration_long"] = (df["duration"] >= 60).astype(int)
-            
+
+            result = []
             # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
             for activity in df["activity_name"].unique():
                 activity_df = df[df["activity_name"] == activity].copy()
