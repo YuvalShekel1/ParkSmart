@@ -602,7 +602,7 @@ def analyze_activity_patterns(data, mood_field):
                 activity_df = df[df["activity_name"] == activity].copy()
                 
                 # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if len(activity_df) >= 3:
+                if activity_df["mood_after"].notna().sum() < 3:
                     # ניתוח לפי משך זמן
                     if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
                         # יצירת רגרסיה לינארית עם משתני משך זמן
