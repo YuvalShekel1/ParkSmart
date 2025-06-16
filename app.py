@@ -496,6 +496,11 @@ def prepare_medication_and_mood_data(data, mood_field):
 
 # פונקציות ניתוח מתקדמות - עם רגרסיה לינארית
 def analyze_activity_patterns(data, mood_field):
+    """
+    ניתוח דפוסי פעילויות והשפעתן על מצב הרוח באמצעות רגרסיה לינארית.
+    הפונקציה מייצגת כל שילוב פעילות-משך-עצימות כמשתנה בינארי נפרד
+    ומודדת את השפעתו על מצב הרוח היומי הממוצע, בדומה לניתוח סימפטומים.
+    """
     if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
@@ -504,8 +509,17 @@ def analyze_activity_patterns(data, mood_field):
         for item in data.get("activities", []):
             if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
                 name = item["activityName"]
+                # ודא שהשם חוקי ולפחות 2 תווים
                 if not name or len(name) < 2:
                     continue
+                # ודא שמשך ועצימות הם ערכים מספריים חוקיים
+                if not isinstance(item["duration"], (int, float)) or item["duration"] < 0:
+                    print(f"Warning: Invalid duration found for activity '{name}'. Skipping.")
+                    continue
+                if not isinstance(item["intensity"], str) or not item["intensity"]:
+                    print(f"Warning: Invalid intensity found for activity '{name}'. Skipping.")
+                    continue
+
                 activity_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "activity_name": name,
@@ -516,17 +530,22 @@ def analyze_activity_patterns(data, mood_field):
         mood_data = []
         for item in data["feelings"]:
             if "date" in item and item.get("type") == mood_field and "severity" in item:
+                # ודא שחומרת מצב הרוח היא ערך מספרי חוקי
+                if not isinstance(item["severity"], (int, float)):
+                    print(f"Warning: Invalid mood severity found. Skipping.")
+                    continue
                 mood_data.append({
                     "date": pd.to_datetime(item["date"]),
                     "severity": item["severity"]
                 })
 
         if len(activity_data) < 3 or len(mood_data) < 3:
-            return "Not enough data points for activity analysis."
+            return "Not enough data points for activity analysis (min 3 for activities and moods)."
 
         activity_df = pd.DataFrame(activity_data)
         mood_df = pd.DataFrame(mood_data)
 
+        # התאמת פעילויות למצב רוח באותו יום (עד סוף היום)
         matched_data = []
         for _, act in activity_df.iterrows():
             end_of_day = act["date"].replace(hour=23, minute=59, second=59)
@@ -534,6 +553,7 @@ def analyze_activity_patterns(data, mood_field):
             if not relevant_moods.empty:
                 avg_mood = relevant_moods["severity"].mean()
                 matched_data.append({
+                    "date": act["date"], # חשוב לשמור את התאריך המקורי
                     "activity_name": act["activity_name"],
                     "duration": act["duration"],
                     "intensity": act["intensity"],
@@ -541,177 +561,119 @@ def analyze_activity_patterns(data, mood_field):
                 })
 
         if len(matched_data) < 3:
-            return "Not enough matched activity-mood data for analysis."
+            return "Not enough matched activity-mood data for analysis (min 3 matched entries)."
             
-        # ספירת מספר התצפיות לכל סוג פעילות
-        activity_counts = {}
-        for item in matched_data:
-            act_name = item["activity_name"]
-            activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
+        # צור DataFrame גולמי מנתוני הפעילויות והמצב רוח המותאמים
+        df_raw = pd.DataFrame(matched_data)
+
+        # 1. יצירת קטגוריות למשך זמן (קצר, בינוני, ארוך)
+        df_raw["duration_category"] = pd.cut(df_raw["duration"],
+                                             bins=[0, 30, 60, np.inf],
+                                             labels=["short", "medium", "long"],
+                                             right=False)
+
+        # 2. יצירת עמודה חדשה שהיא קומבינציה ייחודית של פעילות, עצימות ומשך
+        # לדוגמה: "ריצה_גבוהה_ארוכה", "יוגה_נמוכה_קצרה"
+        df_raw["activity_combo"] = df_raw["activity_name"] + "_" + \
+                                   df_raw["intensity"] + "_" + \
+                                   df_raw["duration_category"].astype(str)
+
+        # נכין דאטה פריים חדש שבו כל שורה היא יום,
+        # וכל עמודה היא משתנה דמה המציין האם קומבינציה מסוימת התרחשה באותו יום.
+
+        # שלב 1: חשב את ממוצע מצב הרוח לכל יום מנתוני הפעילויות המותאמים
+        # זה מייצג את ה-Y (משתנה התלוי) היומי
+        daily_activity_mood = df_raw.groupby(df_raw['date'].dt.date)['mood_after'].mean().reset_index()
+        daily_activity_mood.rename(columns={'date': 'day_date'}, inplace=True)
+
+        # שלב 2: יצירת משתני דמה (בינאריים) עבור כל קומבינציית פעילות-עצימות-משך לכל יום
+        daily_features_list = []
+        all_combos = df_raw['activity_combo'].unique()
+
+        for day_date, group in df_raw.groupby(df_raw['date'].dt.date):
+            record = {'day_date': day_date}
             
-        # סינון רק פעילויות עם לפחות 2 תצפיות
-        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
+            for combo in all_combos:
+                record[f'combo_{combo}'] = 0
+            
+            for combo in group['activity_combo'].unique():
+                record[f'combo_{combo}'] = 1
+            
+            daily_features_list.append(record)
         
-        if len(filtered_data) < 3:
-            return "Not enough matched data after filtering (minimum 2 samples per activity type)."
+        df_features = pd.DataFrame(daily_features_list)
 
-        df = pd.DataFrame(filtered_data)
-        X = df[["activity_name", "duration", "intensity"]]
-        y = df["mood_after"]
+        # מיזוג נתוני מצב הרוח היומיים עם נתוני הפיצ'רים היומיים
+        df_merged_for_regression = pd.merge(daily_activity_mood, df_features, on='day_date', how='left')
 
-        preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
+        # הכנת נתונים לרגרסיה לינארית
+        X_cols = [col for col in df_merged_for_regression.columns if col.startswith("combo_")]
+        
+        if not X_cols:
+            return "No valid activity combinations found for analysis."
+        
+        if len(X_cols) < 1: # שינוי ל-1 כי גם מקדם יחיד אפשרי, למרות שפחות אינפורמטיבי
+             return "Not enough different activity combinations (less than 1 unique type) for analysis after daily aggregation."
+        
+        X = df_merged_for_regression[X_cols]
+        y = df_merged_for_regression["mood_after"]
 
-        model = make_pipeline(preprocessor, LinearRegression())
+        if len(X) < 3: 
+             return "Not enough daily records (less than 3) for activity analysis after aggregation."
+        
+        if y.nunique() < 2:
+            return "Mood severity does not vary enough across days for analysis."
+
+        # הסרת עמודות ב-X שאין בהן וריאציה (כל הערכים זהים), מכיוון שהן עלולות לגרום לבעיות רגרסיה
+        # (לדוגמה, קומבינציה שהתרחשה בכל יום או באף יום)
+        original_X_cols = X.columns.tolist() # שמור את שמות העמודות המקוריות
+        X = X.loc[:, (X != X.iloc[0]).any()] # ישמור רק עמודות שיש בהן לפחות 2 ערכים שונים
+        
+        if X.shape[1] == 0:
+            return "All activity combinations have zero variance across days and cannot be used for regression."
+
+        # רגרסיה לינארית
+        model = LinearRegression()
         model.fit(X, y)
-
-        coefs = model.named_steps["linearregression"].coef_
-        feature_names = model.named_steps["columntransformer"].get_feature_names_out()
-
+        
+        # חילוץ המקדמים
         result = []
-        for i, (name, coef) in enumerate(zip(feature_names, coefs)):
-            feature_type = ""
-            feature_value = ""
+        for combo_col, coef in zip(X.columns, model.coef_):
+            combo_name = combo_col.replace("combo_", "")
             
-            if "activity_name" in name:
-                feature_type = "activity_name"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            elif "intensity" in name:
-                feature_type = "intensity"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            else:
-                feature_type = "duration"
-                feature_value = ""
-                
+            count = df_merged_for_regression[combo_col].sum()
+
             result.append({
-                "feature_type": feature_type,
-                "feature_value": feature_value,
-                "effect": round(coef, 4)
+                "feature_type": "activity_combo",
+                "feature_value": combo_name,
+                "effect": round(coef, 4), # עם 4 ספרות עשרוניות לבדיקת דיוק
+                "count": count
+            })
+        
+        # הוספת האינטרספט (מקדם קבוע)
+        # האינטרספט מייצג את ממוצע מצב הרוח כאשר אף אחת מהקומבינציות הנתונות לא התרחשה
+        if model.intercept_ is not None:
+            result.append({
+                "feature_type": "baseline_mood",
+                "feature_value": "Intercept (Mood without these combos)",
+                "effect": round(model.intercept_, 4),
+                "count": "N/A"
             })
 
-        # ===== רגרסיה לינארית לניתוחים מפורטים =====
-        try:
-            # יצירת משתנים דמי למשך זמן
-            df["duration_short"] = (df["duration"] < 30).astype(int)
-            df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
-            df["duration_long"] = (df["duration"] >= 60).astype(int)
-            
-            # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
-            for activity in df["activity_name"].unique():
-                activity_df = df[df["activity_name"] == activity].copy()
-                
-                # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if len(activity_df) >= 3:
-                    # ניתוח לפי משך זמן
-                    if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
-                        # יצירת רגרסיה לינארית עם משתני משך זמן
-                        X_duration = activity_df[["duration_medium", "duration_long"]]
-                        y_duration = activity_df["mood_after"]
-                        
-                        try:
-                            duration_model = LinearRegression()
-                            duration_model.fit(X_duration, y_duration)
-                            
-                            # חילוץ המקדמים
-                            duration_labels = ["medium", "long"]
-                            for i, coef in enumerate(duration_model.coef_):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
-                                    result.append({
-                                        "feature_type": "detailed_duration",
-                                        "feature_value": f"{activity} {duration_desc}",
-                                        "effect": round(coef, 4)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח לפי עצימות
-                    if len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # מיזוג עם נתוני המצב רוח
-                            intensity_data = pd.concat([intensity_dummies, activity_df["mood_after"]], axis=1)
-                            
-                            # רגרסיה לינארית
-                            X_intensity = intensity_data.drop("mood_after", axis=1)
-                            y_intensity = intensity_data["mood_after"]
-                            
-                            intensity_model = LinearRegression()
-                            intensity_model.fit(X_intensity, y_intensity)
-                            
-                            # חילוץ המקדמים
-                            for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    intensity_value = intensity_name.split("_")[-1]
-                                    result.append({
-                                        "feature_type": "detailed_intensity",
-                                        "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": round(coef, 4)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח משולב של משך זמן ועצימות
-                    if len(activity_df) >= 4 and len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתני אינטראקציה בין משך זמן ועצימות
-                            combined_features = pd.DataFrame()
-                            
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # יצירת אינטראקציות
-                            for duration_type in ["duration_short", "duration_medium", "duration_long"]:
-                                for intensity_col in intensity_dummies.columns:
-                                    col_name = f"{duration_type}_{intensity_col}"
-                                    combined_features[col_name] = activity_df[duration_type] * intensity_dummies[intensity_col]
-                            
-                            # רגרסיה לינארית אם יש מספיק משתנים
-                            if combined_features.shape[1] > 0:
-                                X_combined = combined_features
-                                y_combined = activity_df["mood_after"]
-                                
-                                combined_model = LinearRegression()
-                                combined_model.fit(X_combined, y_combined)
-                                
-                                # חילוץ המקדמים המשמעותיים
-                                for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.2:
-                                        # פירוק שם התכונה
-                                        parts = feature_name.split("_")
-                                        duration_type = parts[1]  # short, medium, long
-                                        intensity_value = parts[-1]  # ערך העצימות
-                                        
-                                        # הגדרת תיאור משך הזמן
-                                        duration_desc = "less than 30 minutes" if duration_type == "short" else "between 30-60 minutes" if duration_type == "medium" else "more than 60 minutes"
-                                        
-                                        result.append({
-                                            "feature_type": "detailed_combo",
-                                            "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": round(coef, 4)
-                                        })
-                        except:
-                            # במקרה של בעיה, המשך
-                            pass
+        # מיון התוצאות: קומבינציות לפי גודל השפעה מוחלט, ואז האינטרספט בסוף
+        sorted_combos = sorted([item for item in result if item["feature_type"] == "activity_combo"],
+                               key=lambda x: abs(x.get("effect", 0)), reverse=True)
         
-        except Exception as e:
-            # במקרה של שגיאה, המשך עם התוצאות הקיימות
-            print(f"Error in detailed activity analysis: {str(e)}")
-            pass
+        final_result = sorted_combos
+        intercept_item = next((item for item in result if item["feature_type"] == "baseline_mood"), None)
+        if intercept_item:
+            final_result.append(intercept_item)
 
-        # מיון התוצאות לפי גודל ההשפעה (מוחלט)
-        result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
-
-        return result
+        return final_result
+    
     except Exception as e:
         return f"Error in activity pattern analysis: {str(e)}"
+
 
 def analyze_medication_patterns(data, mood_field):
     """
