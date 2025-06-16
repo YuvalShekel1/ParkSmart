@@ -587,7 +587,7 @@ def analyze_activity_patterns(data, mood_field):
             result.append({
                 "feature_type": feature_type,
                 "feature_value": feature_value,
-                "effect": round(coef, 2)
+                "effect": round(coef, 4)
             })
 
         # ===== רגרסיה לינארית לניתוחים מפורטים =====
@@ -622,7 +622,7 @@ def analyze_activity_patterns(data, mood_field):
                                     result.append({
                                         "feature_type": "detailed_duration",
                                         "feature_value": f"{activity} {duration_desc}",
-                                        "effect": round(coef, 2)
+                                        "effect": round(coef, 4)
                                     })
                         except:
                             # במקרה של בעיה, המשך לניתוח הבא
@@ -652,7 +652,7 @@ def analyze_activity_patterns(data, mood_field):
                                     result.append({
                                         "feature_type": "detailed_intensity",
                                         "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": round(coef, 2)
+                                        "effect": round(coef, 4)
                                     })
                         except:
                             # במקרה של בעיה, המשך לניתוח הבא
@@ -695,7 +695,7 @@ def analyze_activity_patterns(data, mood_field):
                                         result.append({
                                             "feature_type": "detailed_combo",
                                             "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": round(coef, 2)
+                                            "effect": round(coef, 4)
                                         })
                         except:
                             # במקרה של בעיה, המשך
@@ -869,7 +869,7 @@ def analyze_medication_patterns(data, mood_field):
             result.append({
                 "feature_type": feature_type,
                 "feature_value": feature_value,
-                "effect": round(coef, 2)
+                "effect": round(coef, 4)
             })
 
         # ניתוח השפעת מרווחי זמן - עם רגרסיה לינארית
@@ -907,7 +907,7 @@ def analyze_medication_patterns(data, mood_field):
                                         result.append({
                                             "feature_type": "time_window",
                                             "feature_value": f"{med} within {time_label}",
-                                            "effect": round(coef, 2)
+                                            "effect": round(coef, 4)
                                         })
                             except:
                                 pass
@@ -978,7 +978,7 @@ def analyze_medication_patterns(data, mood_field):
                             result.append({
                                 "feature_type": "medication_sequence",
                                 "feature_value": seq_name,
-                                "effect": round(coef, 2)
+                                "effect": round(coef, 4)
                             })
         except Exception as e:
             print(f"Error in medication sequence analysis: {str(e)}")
@@ -1114,7 +1114,7 @@ def analyze_symptom_patterns(data, mood_field):
             result.append({
                 "feature_type": "symptom_type",
                 "feature_value": symptom_name,
-                "effect": round(coef, 2),
+                "effect": round(coef, 4),
                 "count": X[symptom_col].sum()  # מספר הימים עם הסימפטום
             })
         
@@ -1233,7 +1233,7 @@ def nutrition_analysis_summary(mood_field):
                 nutrient_result.append({
                     "feature_type": "nutrient",
                     "feature_value": nutrients[nutrient_col],
-                    "effect": round(coef, 2),
+                    "effect": round(coef, 4),
                     "is_positive": is_positive,
                     "is_negative": is_negative,
                     "is_significant": abs(coef) >= 0.05 # Add significance for sorting
@@ -1261,7 +1261,7 @@ def nutrition_analysis_summary(mood_field):
                 food_result.append({
                     "feature_type": "specific_food",
                     "feature_value": food_name,
-                    "effect": round(coef, 2),
+                    "effect": round(coef, 4),
                     "is_positive": is_positive,
                     "is_negative": is_negative,
                     "is_significant": abs(coef) >= 0.1 # Add significance for sorting
