@@ -554,8 +554,7 @@ def analyze_activity_patterns(data, mood_field):
         print("Activity counts:", activity_counts)
 
         # סינון פעילויות עם לפחות 3 תצפיות
-        frequent_activities = [name for name, count in activity_counts.items() if count >= 3]
-
+        frequent_activities = [name for name, count in activity_counts.items() if count >= 2]
         if len(frequent_activities) < 2:
             return f"Not enough activities with sufficient data. Need at least 2 activities with 3+ occurrences each. Found: {dict(activity_counts)}"
 
