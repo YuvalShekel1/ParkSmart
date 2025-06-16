@@ -1427,7 +1427,7 @@ def activity_analysis_summary(mood_field):
     X = df[["activity"]]
     y = df["mood_after"]
 
-    encoder = OneHotEncoder(drop='first', sparse=False)
+    encoder = OneHotEncoder(drop='first', sparse_output=False)
     X_encoded = encoder.fit_transform(X)
     model = LinearRegression()
     model.fit(X_encoded, y)
