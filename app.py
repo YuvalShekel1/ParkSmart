@@ -499,219 +499,76 @@ def analyze_activity_patterns(data, mood_field):
     if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
 
-    try:
-        activity_data = []
-        for item in data.get("activities", []):
-            if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
-                name = item["activityName"]
-                if not name or len(name) < 2:
-                    continue
-                activity_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "activity_name": name,
-                    "duration": item["duration"],
-                    "intensity": item["intensity"]
-                })
-
-        mood_data = []
-        for item in data["feelings"]:
-            if "date" in item and item.get("type") == mood_field and "severity" in item:
-                mood_data.append({
-                    "date": pd.to_datetime(item["date"]),
-                    "severity": item["severity"]
-                })
-
-        if len(activity_data) < 3 or len(mood_data) < 3:
-            return "Not enough data points for activity analysis."
-
-        activity_df = pd.DataFrame(activity_data)
-        mood_df = pd.DataFrame(mood_data)
-
-        matched_data = []
-        for _, act in activity_df.iterrows():
-            end_of_day = act["date"].replace(hour=23, minute=59, second=59)
-            relevant_moods = mood_df[(mood_df["date"] >= act["date"]) & (mood_df["date"] <= end_of_day)]
-            if not relevant_moods.empty:
-                avg_mood = relevant_moods["severity"].mean()
-                matched_data.append({
-                    "activity_name": act["activity_name"],
-                    "duration": act["duration"],
-                    "intensity": act["intensity"],
-                    "mood_after": avg_mood
-                })
-
-        if len(matched_data) < 3:
-            return "Not enough matched activity-mood data for analysis."
-            
-        # ספירת מספר התצפיות לכל סוג פעילות
-        activity_counts = {}
-        for item in matched_data:
-            act_name = item["activity_name"]
-            activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
-            
-        # סינון רק פעילויות עם לפחות 2 תצפיות
-        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
-        
-        if len(filtered_data) < 3:
-            return "Not enough matched data after filtering (minimum 2 samples per activity type)."
-
-        df = pd.DataFrame(filtered_data)
-        X = df[["activity_name", "duration", "intensity"]]
-        y = df["mood_after"]
-
-        preprocessor = ColumnTransformer([
-            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
-        ], remainder='passthrough')
-
-        model = make_pipeline(preprocessor, LinearRegression())
-        model.fit(X, y)
-
-        coefs = model.named_steps["linearregression"].coef_
-        feature_names = model.named_steps["columntransformer"].get_feature_names_out()
-
-        result = []
-        for i, (name, coef) in enumerate(zip(feature_names, coefs)):
-            feature_type = ""
-            feature_value = ""
-            
-            if "activity_name" in name:
-                feature_type = "activity_name"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            elif "intensity" in name:
-                feature_type = "intensity"
-                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
-            else:
-                feature_type = "duration"
-                feature_value = ""
-                
-            result.append({
-                "feature_type": feature_type,
-                "feature_value": feature_value,
-                "effect": round(coef, 4)
+    activity_data = []
+    for item in data["activities"]:
+        if "date" in item and "activityName" in item:
+            activity_data.append({
+                "date": pd.to_datetime(item["date"]),
+                "activity": item["activityName"]
             })
 
-        # ===== רגרסיה לינארית לניתוחים מפורטים =====
-        try:
-            # יצירת משתנים דמי למשך זמן
-            df["duration_short"] = (df["duration"] < 30).astype(int)
-            df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
-            df["duration_long"] = (df["duration"] >= 60).astype(int)
-            
-            # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
-            for activity in df["activity_name"].unique():
-                activity_df = df[df["activity_name"] == activity].copy()
-                
-                # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if len(activity_df) >= 3:
-                    # ניתוח לפי משך זמן
-                    if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
-                        # יצירת רגרסיה לינארית עם משתני משך זמן
-                        X_duration = activity_df[["duration_medium", "duration_long"]]
-                        y_duration = activity_df["mood_after"]
-                        
-                        try:
-                            duration_model = LinearRegression()
-                            duration_model.fit(X_duration, y_duration)
-                            
-                            # חילוץ המקדמים
-                            duration_labels = ["medium", "long"]
-                            for i, coef in enumerate(duration_model.coef_):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
-                                    result.append({
-                                        "feature_type": "detailed_duration",
-                                        "feature_value": f"{activity} {duration_desc}",
-                                        "effect": round(coef, 4)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח לפי עצימות
-                    if len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # מיזוג עם נתוני המצב רוח
-                            intensity_data = pd.concat([intensity_dummies, activity_df["mood_after"]], axis=1)
-                            
-                            # רגרסיה לינארית
-                            X_intensity = intensity_data.drop("mood_after", axis=1)
-                            y_intensity = intensity_data["mood_after"]
-                            
-                            intensity_model = LinearRegression()
-                            intensity_model.fit(X_intensity, y_intensity)
-                            
-                            # חילוץ המקדמים
-                            for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
-                                # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.2:
-                                    intensity_value = intensity_name.split("_")[-1]
-                                    result.append({
-                                        "feature_type": "detailed_intensity",
-                                        "feature_value": f"{activity} with {intensity_value} intensity",
-                                        "effect": round(coef, 4)
-                                    })
-                        except:
-                            # במקרה של בעיה, המשך לניתוח הבא
-                            pass
-                    
-                    # ניתוח משולב של משך זמן ועצימות
-                    if len(activity_df) >= 4 and len(activity_df["intensity"].unique()) > 1:
-                        try:
-                            # יצירת משתני אינטראקציה בין משך זמן ועצימות
-                            combined_features = pd.DataFrame()
-                            
-                            # יצירת משתנים דמי לעצימות
-                            intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
-                            
-                            # יצירת אינטראקציות
-                            for duration_type in ["duration_short", "duration_medium", "duration_long"]:
-                                for intensity_col in intensity_dummies.columns:
-                                    col_name = f"{duration_type}_{intensity_col}"
-                                    combined_features[col_name] = activity_df[duration_type] * intensity_dummies[intensity_col]
-                            
-                            # רגרסיה לינארית אם יש מספיק משתנים
-                            if combined_features.shape[1] > 0:
-                                X_combined = combined_features
-                                y_combined = activity_df["mood_after"]
-                                
-                                combined_model = LinearRegression()
-                                combined_model.fit(X_combined, y_combined)
-                                
-                                # חילוץ המקדמים המשמעותיים
-                                for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.2:
-                                        # פירוק שם התכונה
-                                        parts = feature_name.split("_")
-                                        duration_type = parts[1]  # short, medium, long
-                                        intensity_value = parts[-1]  # ערך העצימות
-                                        
-                                        # הגדרת תיאור משך הזמן
-                                        duration_desc = "less than 30 minutes" if duration_type == "short" else "between 30-60 minutes" if duration_type == "medium" else "more than 60 minutes"
-                                        
-                                        result.append({
-                                            "feature_type": "detailed_combo",
-                                            "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
-                                            "effect": round(coef, 4)
-                                        })
-                        except:
-                            # במקרה של בעיה, המשך
-                            pass
-        
-        except Exception as e:
-            # במקרה של שגיאה, המשך עם התוצאות הקיימות
-            print(f"Error in detailed activity analysis: {str(e)}")
-            pass
+    mood_data = []
+    for item in data["feelings"]:
+        if "date" in item and "severity" in item and item.get("type") == mood_field:
+            mood_data.append({
+                "date": pd.to_datetime(item["date"]),
+                "mood": item["severity"]
+            })
 
-        # מיון התוצאות לפי גודל ההשפעה (מוחלט)
-        result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
+    if len(activity_data) < 3 or len(mood_data) < 3:
+        return "Not enough data points for analysis."
 
-        return result
-    except Exception as e:
-        return f"Error in activity pattern analysis: {str(e)}"
+    # הפוך לדאטה פריים
+    activity_df = pd.DataFrame(activity_data)
+    mood_df = pd.DataFrame(mood_data)
+
+    # מיזוג לפי ימים (הנחה: לכל פעילות, נחשב את mood עד סוף היום)
+    matched = []
+    for _, row in activity_df.iterrows():
+        end_of_day = row["date"].replace(hour=23, minute=59, second=59)
+        moods = mood_df[(mood_df["date"] >= row["date"]) & (mood_df["date"] <= end_of_day)]
+        if not moods.empty:
+            avg_mood = moods["mood"].mean()
+            matched.append({
+                "activity": row["activity"],
+                "mood_after": avg_mood
+            })
+
+    if len(matched) < 3:
+        return "Not enough matched activity-mood pairs."
+
+    df = pd.DataFrame(matched)
+    common_activities = df["activity"].value_counts()
+    common_activities = common_activities[common_activities >= 2]
+    df = df[df["activity"].isin(common_activities.index)]
+
+    if df.empty or df["activity"].nunique() < 2:
+        return "Not enough diverse activity data for analysis."
+
+    X = pd.get_dummies(df["activity"], prefix="act", drop_first=False)
+    y = df["mood_after"]
+
+    model = LinearRegression()
+    model.fit(X, y)
+
+    results = []
+    for name, coef in zip(X.columns, model.coef_):
+        act_name = name.replace("act_", "")
+        is_positive, is_negative = determine_colors(coef, mood_field)
+        results.append({
+            "feature_type": "activity",
+            "feature_value": act_name,
+            "effect": round(coef, 4),
+            "is_positive": is_positive,
+            "is_negative": is_negative,
+            "is_significant": abs(coef) >= 0.05
+        })
+
+    results.sort(key=lambda x: (0 if x["is_positive"] and x["is_significant"]
+                                else 1 if x["is_negative"] and x["is_significant"]
+                                else 2, -abs(x["effect"])))
+    return results
+
 
 def analyze_medication_patterns(data, mood_field):
     """
@@ -1379,84 +1236,51 @@ def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
 
-    advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
+    results = analyze_activity_patterns(translated_data_global, mood_field)
 
-    if isinstance(advanced_analysis, str):
-        return advanced_analysis
+    if isinstance(results, str):
+        return results
 
-    if not advanced_analysis:
-        return "No patterns found."
+    if not results:
+        return "No activity patterns found."
 
     mood_field_lower = mood_field.lower()
 
-    # Lists to store HTML lines for basic insights
-    basic_green_html = []
-    basic_red_html = []
-    basic_neutral_html = []
-    
-    # Lists to store HTML lines for detailed insights
-    detailed_green_html = []
-    detailed_red_html = []
+    # הצגת התובנות כ־HTML מחולק לפי השפעה
+    insights_with_color_info = []
 
-    for item in advanced_analysis:
-        feature_type = item.get("feature_type", "")
+    for item in results:
         feature_value = item.get("feature_value", "")
-        effect = item.get("effect")
+        effect = item.get("effect", 0)
         effect_str = f"{abs(effect)/5*100:.1f}%"
-        # Determine label for display
-        if feature_type == "activity_name":
-            label = feature_value.strip().title()
-        elif feature_type == "intensity":
-            label = feature_value.strip().capitalize() + " intensity activity"
-        elif feature_type == "duration":
-            label = "Duration activity"
-        elif feature_type == "detailed_duration":
-            label = feature_value
-        elif feature_type == "detailed_intensity":
-            label = feature_value
-        elif feature_type == "detailed_combo":
-            label = feature_value
-        else:
-            label = feature_value
+        is_positive = item.get("is_positive", False)
+        is_negative = item.get("is_negative", False)
+        is_significant = item.get("is_significant", False)
 
-        is_positive, is_negative = determine_colors(effect, mood_field)
+        label = feature_value
         direction = "increases" if effect > 0 else "decreases"
 
-        # Construct HTML line
-        if abs(effect) < 0.05:
-            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
-            basic_neutral_html.append(line_html)
+        if not is_significant:
+            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>"
+            priority = 2
         elif is_positive:
-            if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
-                detailed_green_html.append(line_html)
-            else:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
-                basic_green_html.append(line_html)
-        else: # is_negative
-            if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
-                detailed_red_html.append(line_html)
-            else:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
-                basic_red_html.append(line_html)
+            line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
+            priority = 0
+        else:  # is_negative
+            line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>"
+            priority = 1
 
-    # Combine basic insights into an HTML section
-    activity_insights_html_section = f"""
-    <h2>🏃 <strong>Activity impact on {mood_field}</strong></h2>
-    {"".join(basic_green_html + basic_red_html + basic_neutral_html)}
-    """
+        insights_with_color_info.append({
+            "html": line_html,
+            "priority": priority,
+            "effect_abs": abs(effect)
+        })
 
-    # Combine detailed insights into an HTML section
-    detailed_activity_insights_html_section = ""
-    if detailed_green_html or detailed_red_html:
-        detailed_activity_insights_html_section = f"""
-        <h2>🏋️ Detailed Activity Patterns</h2>
-        {"".join(detailed_green_html + detailed_red_html)}
-        """
+    insights_with_color_info.sort(key=lambda x: (x["priority"], -x["effect_abs"]))
 
-    # Final HTML output structure with two columns
-    if not basic_green_html and not basic_red_html and not basic_neutral_html and not detailed_green_html and not detailed_red_html:
+    html_lines = [item["html"] for item in insights_with_color_info]
+
+    if not html_lines:
         return "No significant activity patterns found."
 
     final_html_output = f"""
@@ -1464,16 +1288,15 @@ def activity_analysis_summary(mood_field):
         <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
             <span class="md svelte-7ddecg prose">
                 <div class="column-content">
-                    {activity_insights_html_section}
-                </div>
-                <div class="column-content">
-                    {detailed_activity_insights_html_section}
+                    <h2>🏃 <strong>Activity impact on {mood_field}</strong></h2>
+                    {"".join(html_lines)}
                 </div>
             </span>
         </div>
     </div>
     """
     return final_html_output
+
 
 def medication_analysis_summary(mood_field):
     """
