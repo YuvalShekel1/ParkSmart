@@ -563,7 +563,7 @@ def analyze_activity_patterns(data, mood_field):
 
         print(f"After filtering: {len(filtered_data)} records from {len(frequent_activities)} activities")
 
-        if len(filtered_data) < 4:  # לפחות 6 רשומות לניתוח רגרסיה
+        if len(filtered_data) < 5:  # לפחות 6 רשומות לניתוח רגרסיה
             return f"Not enough data after filtering for statistical analysis. Found {len(filtered_data)} records from activities: {frequent_activities}"
 
         df = pd.DataFrame(filtered_data)
