@@ -555,7 +555,7 @@ def analyze_activity_patterns(data, mood_field):
 
         # סינון פעילויות עם לפחות 3 תצפיות
         frequent_activities = [name for name, count in activity_counts.items() if count >= 2]
-        if len(frequent_activities) < 2:
+        if len(frequent_activities) == 0:
             return f"Not enough activities with sufficient data. Need at least 2 activities with 3+ occurrences each. Found: {dict(activity_counts)}"
 
         # סינון הנתונים לפעילויות עם מספיק תצפיות
@@ -563,7 +563,7 @@ def analyze_activity_patterns(data, mood_field):
 
         print(f"After filtering: {len(filtered_data)} records from {len(frequent_activities)} activities")
 
-        if len(filtered_data) < 5:  # לפחות 6 רשומות לניתוח רגרסיה
+        if len(filtered_data) < 3:  # לפחות 6 רשומות לניתוח רגרסיה
             return f"Not enough data after filtering for statistical analysis. Found {len(filtered_data)} records from activities: {frequent_activities}"
 
         df = pd.DataFrame(filtered_data)
