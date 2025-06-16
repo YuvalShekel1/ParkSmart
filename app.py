@@ -1124,7 +1124,7 @@ def analyze_symptom_patterns(data, mood_field):
         return result
     except Exception as e:
         return f"Error in symptom pattern analysis: {str(e)}"
-
+        
 def determine_colors(effect, mood_field):
     """
     Helper function to determine if an effect is positive or negative
@@ -1579,46 +1579,6 @@ def medication_analysis_summary(mood_field):
     """
     return final_html_output
 
-def analyze_symptom_patterns(data, mood_field):
-    # This is a placeholder for your actual symptom analysis logic.
-    # It should return a list of dictionaries, where each dictionary
-    # has at least 'feature_value' (symptom name) and 'effect'.
-    # For demonstration, I'll return some dummy data.
-    if not data:
-        return []
-
-    # Example dummy data for demonstration
-    # In a real scenario, this would come from your analysis,
-    # including regression coefficients for symptom impacts.
-    
-    # You would typically have a more complex analysis here,
-    # involving symptom data, mood_field, and statistical models
-    # to determine the 'effect' of each symptom on the mood.
-    
-    # For now, let's create some sample effects:
-    sample_effects = [
-        {"feature_value": "Fatigue", "effect": 0.8},  # Positive effect on mood (e.g., increases it)
-        {"feature_value": "Anxiety", "effect": -1.2}, # Negative effect on mood (e.g., decreases it)
-        {"feature_value": "Tremor", "effect": 0.1},   # Small positive effect, likely not significant
-        {"feature_value": "Insomnia", "effect": -0.6},# Negative effect
-        {"feature_value": "Stiffness", "effect": 0.02} # Very small effect
-    ]
-
-    # Adjust effects based on mood_field to simulate how 'determine_colors' would react
-    if "parkinson" in mood_field.lower() or "symptom" in mood_field.lower():
-        # If it's a Parkinson's symptom, a positive effect means worsening, so good is negative
-        # Let's invert some effects for Parkinson's context for demonstration
-        for item in sample_effects:
-            if item["feature_value"] == "Tremor":
-                item["effect"] = 0.9 # Worsening tremor means higher effect value
-            elif item["feature_value"] == "Stiffness":
-                item["effect"] = 0.7
-            elif item["feature_value"] == "Fatigue":
-                item["effect"] = 0.5
-    
-    return sample_effects
-
-
 def determine_colors(effect, mood_field):
     """
     Helper function to determine if an effect is positive or negative
@@ -1661,7 +1621,7 @@ def symptom_analysis_summary(mood_field):
     
     # צור רשימה שתכיל מילונים עבור כל תובנה, כולל סוג הצבע למיון
     insights_with_color_info = []
-
+    
     for item in advanced_analysis:
         feature_value = item.get("feature_value", "")
         effect = item.get("effect")
