@@ -498,7 +498,7 @@ def prepare_medication_and_mood_data(data, mood_field):
 def analyze_activity_patterns(data, mood_field):
     if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
-    result = []
+
     try:
         activity_data = []
         for item in data.get("activities", []):
@@ -521,7 +521,7 @@ def analyze_activity_patterns(data, mood_field):
                     "severity": item["severity"]
                 })
 
-        if len(activity_data) < 2 or len(mood_data) < 2:
+        if len(activity_data) < 3 or len(mood_data) < 3:
             return "Not enough data points for activity analysis."
 
         activity_df = pd.DataFrame(activity_data)
@@ -540,7 +540,7 @@ def analyze_activity_patterns(data, mood_field):
                     "mood_after": avg_mood
                 })
 
-        if len(matched_data) < 2:
+        if len(matched_data) < 3:
             return "Not enough matched activity-mood data for analysis."
             
         # ספירת מספר התצפיות לכל סוג פעילות
@@ -552,9 +552,43 @@ def analyze_activity_patterns(data, mood_field):
         # סינון רק פעילויות עם לפחות 2 תצפיות
         filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
         
-        if len(filtered_data) < 2:
+        if len(filtered_data) < 3:
             return "Not enough matched data after filtering (minimum 2 samples per activity type)."
 
+        df = pd.DataFrame(filtered_data)
+        X = df[["activity_name", "duration", "intensity"]]
+        y = df["mood_after"]
+
+        preprocessor = ColumnTransformer([
+            ("cat", OneHotEncoder(handle_unknown="ignore"), ["activity_name", "intensity"])
+        ], remainder='passthrough')
+
+        model = make_pipeline(preprocessor, LinearRegression())
+        model.fit(X, y)
+
+        coefs = model.named_steps["linearregression"].coef_
+        feature_names = model.named_steps["columntransformer"].get_feature_names_out()
+
+        result = []
+        for i, (name, coef) in enumerate(zip(feature_names, coefs)):
+            feature_type = ""
+            feature_value = ""
+            
+            if "activity_name" in name:
+                feature_type = "activity_name"
+                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
+            elif "intensity" in name:
+                feature_type = "intensity"
+                feature_value = name.split("_")[-1]  # קח רק את השם האחרון אחרי ה-_
+            else:
+                feature_type = "duration"
+                feature_value = ""
+                
+            result.append({
+                "feature_type": feature_type,
+                "feature_value": feature_value,
+                "effect": round(coef, 4)
+            })
 
         # ===== רגרסיה לינארית לניתוחים מפורטים =====
         try:
@@ -562,13 +596,13 @@ def analyze_activity_patterns(data, mood_field):
             df["duration_short"] = (df["duration"] < 30).astype(int)
             df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
             df["duration_long"] = (df["duration"] >= 60).astype(int)
-
+            
             # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
             for activity in df["activity_name"].unique():
                 activity_df = df[df["activity_name"] == activity].copy()
                 
                 # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if activity_df["mood_after"].notna().sum() < 2:
+                if len(activity_df) >= 3:
                     # ניתוח לפי משך זמן
                     if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
                         # יצירת רגרסיה לינארית עם משתני משך זמן
