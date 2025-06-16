@@ -521,7 +521,7 @@ def analyze_activity_patterns(data, mood_field):
                     "severity": item["severity"]
                 })
 
-        if len(activity_data) < 3 or len(mood_data) < 3:
+        if len(activity_data) < 2 or len(mood_data) < 2:
             return "Not enough data points for activity analysis."
 
         activity_df = pd.DataFrame(activity_data)
@@ -540,7 +540,7 @@ def analyze_activity_patterns(data, mood_field):
                     "mood_after": avg_mood
                 })
 
-        if len(matched_data) < 3:
+        if len(matched_data) < 2:
             return "Not enough matched activity-mood data for analysis."
             
         # ספירת מספר התצפיות לכל סוג פעילות
@@ -552,7 +552,7 @@ def analyze_activity_patterns(data, mood_field):
         # סינון רק פעילויות עם לפחות 2 תצפיות
         filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
         
-        if len(filtered_data) < 3:
+        if len(filtered_data) < 2:
             return "Not enough matched data after filtering (minimum 2 samples per activity type)."
 
 
@@ -568,7 +568,7 @@ def analyze_activity_patterns(data, mood_field):
                 activity_df = df[df["activity_name"] == activity].copy()
                 
                 # אם יש מספיק נתונים לניתוח (לפחות 3 שורות ולפחות 2 ערכים ייחודיים לכל משתנה)
-                if activity_df["mood_after"].notna().sum() < 3:
+                if activity_df["mood_after"].notna().sum() < 2:
                     # ניתוח לפי משך זמן
                     if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
                         # יצירת רגרסיה לינארית עם משתני משך זמן
