@@ -1379,101 +1379,87 @@ def activity_analysis_summary(mood_field):
     if not translated_data_global:
         return "Please upload and process data first."
 
-    advanced_analysis = analyze_activity_patterns(translated_data_global, mood_field)
+    activities = translated_data_global.get("activities", [])
+    feelings = translated_data_global.get("feelings", [])
 
-    if isinstance(advanced_analysis, str):
-        return advanced_analysis
+    activity_data = []
+    for item in activities:
+        if "date" in item and "activityName" in item and "duration" in item and "intensity" in item:
+            activity_data.append({
+                "date": pd.to_datetime(item["date"]),
+                "activity": item["activityName"],
+                "duration": item["duration"],
+                "intensity": item["intensity"]
+            })
 
-    if not advanced_analysis:
-        return "No patterns found."
+    mood_data = []
+    for item in feelings:
+        if "date" in item and "severity" in item and item.get("type") == mood_field:
+            mood_data.append({
+                "date": pd.to_datetime(item["date"]),
+                "severity": item["severity"]
+            })
 
-    mood_field_lower = mood_field.lower()
+    if len(activity_data) < 3 or len(mood_data) < 3:
+        return "Not enough data for analysis."
 
-    # Lists to store HTML lines for basic insights
-    basic_green_html = []
-    basic_red_html = []
-    basic_neutral_html = []
-    
-    # Lists to store HTML lines for detailed insights
-    detailed_green_html = []
-    detailed_red_html = []
+    df_activities = pd.DataFrame(activity_data)
+    df_mood = pd.DataFrame(mood_data)
 
-    for item in advanced_analysis:
-        feature_type = item.get("feature_type", "")
-        feature_value = item.get("feature_value", "")
-        effect = item.get("effect")
-        effect_str = f"{abs(effect)/5*100:.1f}%"
-        # Determine label for display
-        if feature_type == "activity_name":
-            label = feature_value.strip().title()
-        elif feature_type == "intensity":
-            label = feature_value.strip().capitalize() + " intensity activity"
-        elif feature_type == "duration":
-            label = "Duration activity"
-        elif feature_type == "detailed_duration":
-            label = feature_value
-        elif feature_type == "detailed_intensity":
-            label = feature_value
-        elif feature_type == "detailed_combo":
-            label = feature_value
-        else:
-            label = feature_value
+    matched_data = []
+    for _, row in df_activities.iterrows():
+        day_end = row["date"].replace(hour=23, minute=59, second=59)
+        moods_after = df_mood[(df_mood["date"] >= row["date"]) & (df_mood["date"] <= day_end)]
+        if not moods_after.empty:
+            avg_mood = moods_after["severity"].mean()
+            matched_data.append({
+                "activity": row["activity"],
+                "intensity": row["intensity"],
+                "duration": row["duration"],
+                "mood_after": avg_mood
+            })
 
-        is_positive, is_negative = determine_colors(effect, mood_field)
-        direction = "increases" if effect > 0 else "decreases"
+    df = pd.DataFrame(matched_data)
+    if df.empty or len(df["activity"].unique()) < 2:
+        return "Not enough matched activity-mood data."
 
-        # Construct HTML line
-        if abs(effect) < 0.05:
-            line_html = f"<p>&#x26AB; <strong>{label}</strong>: no significant impact</p>" # Black circle
-            basic_neutral_html.append(line_html)
-        elif is_positive:
-            if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
-                detailed_green_html.append(line_html)
-            else:
-                line_html = f"<p><span style='color: green;'>&#x1F7E2;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Green circle
-                basic_green_html.append(line_html)
-        else: # is_negative
-            if feature_type in ["detailed_duration", "detailed_intensity", "detailed_combo"]:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong> {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
-                detailed_red_html.append(line_html)
-            else:
-                line_html = f"<p><span style='color: red;'>&#x1F534;</span> <strong>{label}</strong>: {direction} {mood_field_lower} by {effect_str} on average</p>" # Red circle
-                basic_red_html.append(line_html)
+    # נשתמש רק ב-activity לניתוח ההשפעה
+    X = df[["activity"]]
+    y = df["mood_after"]
 
-    # Combine basic insights into an HTML section
-    activity_insights_html_section = f"""
-    <h2>🏃 <strong>Activity impact on {mood_field}</strong></h2>
-    {"".join(basic_green_html + basic_red_html + basic_neutral_html)}
-    """
+    encoder = OneHotEncoder(drop='first', sparse=False)
+    X_encoded = encoder.fit_transform(X)
+    model = LinearRegression()
+    model.fit(X_encoded, y)
 
-    # Combine detailed insights into an HTML section
-    detailed_activity_insights_html_section = ""
-    if detailed_green_html or detailed_red_html:
-        detailed_activity_insights_html_section = f"""
-        <h2>🏋️ Detailed Activity Patterns</h2>
-        {"".join(detailed_green_html + detailed_red_html)}
-        """
+    activity_labels = encoder.get_feature_names_out(["activity"])
+    raw_coefs = model.coef_
 
-    # Final HTML output structure with two columns
-    if not basic_green_html and not basic_red_html and not basic_neutral_html and not detailed_green_html and not detailed_red_html:
+    insights = []
+    for label, coef in zip(activity_labels, raw_coefs):
+        activity_name = label.replace("activity_", "")
+        effect_percent = coef / 5 * 100
+        effect_str = f"{abs(effect_percent):.1f}%"
+        direction = "increases" if coef > 0 else "decreases"
+        symbol = "🟢" if coef > 0 else "🔴"
+        color = "green" if coef > 0 else "red"
+        insights.append(
+            f"<p><span style='color: {color};'>{symbol}</span> <strong>{activity_name}</strong>: {direction} my mood by {effect_str} on average</p>"
+        )
+
+    if not insights:
         return "No significant activity patterns found."
 
-    final_html_output = f"""
-    <div id="activity-analysis-container" class="svelte-vuh1yp">
-        <div class="prose svelte-lag733" data-testid="markdown" dir="ltr" style="">
-            <span class="md svelte-7ddecg prose">
-                <div class="column-content">
-                    {activity_insights_html_section}
-                </div>
-                <div class="column-content">
-                    {detailed_activity_insights_html_section}
-                </div>
-            </span>
+    html_output = f"""
+    <div id="activity-analysis-container">
+        <div class="prose">
+            <h2>🏃 <strong>Activity impact on {mood_field}</strong></h2>
+            {''.join(insights)}
         </div>
     </div>
     """
-    return final_html_output
+    return html_output
+
 
 def medication_analysis_summary(mood_field):
     """
