@@ -521,10 +521,8 @@ def analyze_activity_patterns(data, mood_field):
                     "severity": item["severity"]
                 })
 
-        print(f"Found {len(activity_data)} activities and {len(mood_data)} mood records")
-
-        if len(activity_data) < 5 or len(mood_data) < 5:
-            return f"Not enough data points for activity analysis. Need at least 5 activities and 5 mood records. Found: {len(activity_data)} activities, {len(mood_data)} mood records."
+        if len(activity_data) < 3 or len(mood_data) < 3:
+            return "Not enough data points for activity analysis."
 
         activity_df = pd.DataFrame(activity_data)
         mood_df = pd.DataFrame(mood_data)
@@ -542,29 +540,20 @@ def analyze_activity_patterns(data, mood_field):
                     "mood_after": avg_mood
                 })
 
-        if len(matched_data) < 5:
-            return f"Not enough matched activity-mood data for analysis. Found only {len(matched_data)} matches."
+        if len(matched_data) < 3:
+            return "Not enough matched activity-mood data for analysis."
             
         # ספירת מספר התצפיות לכל סוג פעילות
         activity_counts = {}
         for item in matched_data:
             act_name = item["activity_name"]
             activity_counts[act_name] = activity_counts.get(act_name, 0) + 1
-
-        print("Activity counts:", activity_counts)
-
-        # סינון פעילויות עם לפחות 3 תצפיות
-        frequent_activities = [name for name, count in activity_counts.items() if count >= 3]
-        if len(frequent_activities) == 0:
-            return f"Not enough activities with sufficient data. Need at least 2 activities with 3+ occurrences each. Found: {dict(activity_counts)}"
-
-        # סינון הנתונים לפעילויות עם מספיק תצפיות
-        filtered_data = [item for item in matched_data if item["activity_name"] in frequent_activities]
-
-        print(f"After filtering: {len(filtered_data)} records from {len(frequent_activities)} activities")
-
-        if len(filtered_data) < 3:  # לפחות 6 רשומות לניתוח רגרסיה
-            return f"Not enough data after filtering for statistical analysis. Found {len(filtered_data)} records from activities: {frequent_activities}"
+            
+        # סינון רק פעילויות עם לפחות 2 תצפיות
+        filtered_data = [item for item in matched_data if activity_counts[item["activity_name"]] >= 2]
+        
+        if len(filtered_data) < 3:
+            return "Not enough matched data after filtering (minimum 2 samples per activity type)."
 
         df = pd.DataFrame(filtered_data)
         X = df[["activity_name", "duration", "intensity"]]
@@ -595,13 +584,11 @@ def analyze_activity_patterns(data, mood_field):
                 feature_type = "duration"
                 feature_value = ""
                 
-            # רק תוצאות עם השפעה משמעותית
-            if abs(coef) >= 0.1:  # סף משמעותיות גבוה יותר
-                result.append({
-                    "feature_type": feature_type,
-                    "feature_value": feature_value,
-                    "effect": round(coef, 4)
-                })
+            result.append({
+                "feature_type": feature_type,
+                "feature_value": feature_value,
+                "effect": round(coef, 4)
+            })
 
         # ===== רגרסיה לינארית לניתוחים מפורטים =====
         try:
@@ -630,7 +617,7 @@ def analyze_activity_patterns(data, mood_field):
                             duration_labels = ["medium", "long"]
                             for i, coef in enumerate(duration_model.coef_):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.3:  # סף גבוה יותר לניתוחים מפורטים
+                                if abs(coef) >= 0.2:
                                     duration_desc = f"less than 30 minutes" if i == 0 else "between 30-60 minutes" if i == 1 else "more than 60 minutes"
                                     result.append({
                                         "feature_type": "detailed_duration",
@@ -660,7 +647,7 @@ def analyze_activity_patterns(data, mood_field):
                             # חילוץ המקדמים
                             for i, (intensity_name, coef) in enumerate(zip(X_intensity.columns, intensity_model.coef_)):
                                 # רק אם המקדם משמעותי
-                                if abs(coef) >= 0.3:  # סף גבוה יותר לניתוחים מפורטים
+                                if abs(coef) >= 0.2:
                                     intensity_value = intensity_name.split("_")[-1]
                                     result.append({
                                         "feature_type": "detailed_intensity",
@@ -696,7 +683,7 @@ def analyze_activity_patterns(data, mood_field):
                                 
                                 # חילוץ המקדמים המשמעותיים
                                 for feature_name, coef in zip(X_combined.columns, combined_model.coef_):
-                                    if abs(coef) >= 0.3:  # סף גבוה יותר לניתוחים מפורטים
+                                    if abs(coef) >= 0.2:
                                         # פירוק שם התכונה
                                         parts = feature_name.split("_")
                                         duration_type = parts[1]  # short, medium, long
@@ -718,9 +705,6 @@ def analyze_activity_patterns(data, mood_field):
             # במקרה של שגיאה, המשך עם התוצאות הקיימות
             print(f"Error in detailed activity analysis: {str(e)}")
             pass
-
-        if not result:
-            return f"No statistically significant activity patterns found. Analyzed {len(frequent_activities)} activities: {frequent_activities}"
 
         # מיון התוצאות לפי גודל ההשפעה (מוחלט)
         result.sort(key=lambda x: abs(x.get("effect", 0)), reverse=True)
