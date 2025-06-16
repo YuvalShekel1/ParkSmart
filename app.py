@@ -498,7 +498,7 @@ def prepare_medication_and_mood_data(data, mood_field):
 def analyze_activity_patterns(data, mood_field):
     if not data or "activities" not in data or "feelings" not in data:
         return "Not enough data for activity pattern analysis."
-
+    result = []
     try:
         activity_data = []
         for item in data.get("activities", []):
@@ -563,7 +563,6 @@ def analyze_activity_patterns(data, mood_field):
             df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
             df["duration_long"] = (df["duration"] >= 60).astype(int)
 
-            result = []
             # ניתוח עבור כל סוג פעילות, חלוקה לפי משך זמן ועצימות
             for activity in df["activity_name"].unique():
                 activity_df = df[df["activity_name"] == activity].copy()
