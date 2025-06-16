@@ -900,11 +900,13 @@ def analyze_medication_patterns(data, mood_field):
                                 # חילוץ המקדמים
                                 time_windows = ["0-1 hour", "1-2 hours", "2-4 hours", "4+ hours"]
                                 for i, coef in enumerate(time_model.coef_):
-                                    # בדוק אם ההשפעה משמעותית
+                                    time_label = time_windows[i]
+                                    if time_label == "4+ hours":
+                                        continue  # מדלג על תובנות של 4+ שעות
                                     if abs(coef) >= 0.2:
                                         result.append({
                                             "feature_type": "time_window",
-                                            "feature_value": f"{med} within {time_windows[i]}",
+                                            "feature_value": f"{med} within {time_label}",
                                             "effect": round(coef, 2)
                                         })
                             except:
