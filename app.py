@@ -1855,11 +1855,3 @@ with gr.Blocks(title="Parkinson's Health Pattern Analysis", css=custom_css) as a
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.launch(server_name='0.0.0.0', server_port=port)
-
-זה מראה לי activity impact אחוזים זהים וזה לא הגיוני:
-🏃 Activity impact on Physical State
-🟢 Table Tennis: increases physical state by 30.0% on average
-🟢 Low intensity activity: increases physical state by 30.0% on average
-🔴 Assembling Garden Chairs: decreases physical state by 30.0% on average
-🔴 Moderate intensity activity: decreases physical state by 30.0% on average
-⚫ Duration activity: no significant impact
