@@ -568,6 +568,14 @@ def analyze_activity_patterns(data, mood_field):
 
         coefs = model.named_steps["linearregression"].coef_
         feature_names = model.named_steps["columntransformer"].get_feature_names_out()
+        print("== Coefficients ==")
+        for name, coef in zip(feature_names, coefs):
+            print(f"{name}: {coef}")
+
+        print("=== Activity Data Summary ===")
+        print(df["activity_name"].value_counts())
+        print(df["intensity"].value_counts())
+        print(df["duration"].describe())
 
         result = []
         for i, (name, coef) in enumerate(zip(feature_names, coefs)):
