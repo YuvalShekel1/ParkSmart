@@ -497,18 +497,22 @@ def prepare_medication_and_mood_data(data, mood_field):
 # פונקציות ניתוח מתקדמות - עם רגרסיה לינארית
 def analyze_activity_effect(df, target_column, preprocessor):
     try:
+        # סינון נתונים חסרים
         df = df[df[target_column].notna()]
 
         if len(df) < 5:
             print("⚠️ Not enough data for regression.")
             return ["⚠️ Not enough data to analyze the effect of activities on " + target_column + "."]
 
+        # חילוץ משתנים לפיצול בין תכונות התזונה
         X = df[["activity_name", "duration", "intensity"]]
         y = df[target_column]
 
+        # יצירת מודל רגרסיה
         model = make_pipeline(preprocessor, LinearRegression())
         model.fit(X, y)
 
+        # קבלת המקדמים והשם של כל משתנה
         coefs = model.named_steps["linearregression"].coef_
         feature_names = model.named_steps["columntransformer"].get_feature_names_out()
 
@@ -527,6 +531,7 @@ def analyze_activity_effect(df, target_column, preprocessor):
                 feature_type = "duration"
                 feature_value = ""
 
+            # שינוי הערך שנעשה לפי המקדמים
             if feature_type == "activity_name" and mean_abs_coef:
                 change = round(100 * (coef / mean_abs_coef), 1)
             else:
@@ -538,7 +543,7 @@ def analyze_activity_effect(df, target_column, preprocessor):
                 "effect": change
             })
 
-        # ===== רגרסיה מפורטת לפי פעילות =====
+        # ניתוח רגרסיה מפורטת לפי פעילות
         try:
             df["duration_short"] = (df["duration"] < 30).astype(int)
             df["duration_medium"] = ((df["duration"] >= 30) & (df["duration"] < 60)).astype(int)
@@ -548,7 +553,7 @@ def analyze_activity_effect(df, target_column, preprocessor):
                 activity_df = df[df["activity_name"] == activity].copy()
 
                 if len(activity_df) >= 3:
-                    # משך זמן
+                    # רגרסיה לפי משך זמן
                     if len(activity_df["duration_short"].unique()) > 1 or len(activity_df["duration_medium"].unique()) > 1 or len(activity_df["duration_long"].unique()) > 1:
                         X_duration = activity_df[["duration_medium", "duration_long"]]
                         y_duration = activity_df["mood_after"]
@@ -563,10 +568,11 @@ def analyze_activity_effect(df, target_column, preprocessor):
                                         "feature_value": f"{activity} {duration_desc}",
                                         "effect": round(coef, 4)
                                     })
-                        except:
+                        except Exception as e:
+                            print(f"Error in duration regression: {str(e)}")
                             pass
 
-                    # עצימות
+                    # רגרסיה לפי עצימות
                     if len(activity_df["intensity"].unique()) > 1:
                         try:
                             intensity_dummies = pd.get_dummies(activity_df["intensity"], prefix="intensity")
@@ -583,10 +589,11 @@ def analyze_activity_effect(df, target_column, preprocessor):
                                         "feature_value": f"{activity} with {intensity_value} intensity",
                                         "effect": round(coef, 4)
                                     })
-                        except:
+                        except Exception as e:
+                            print(f"Error in intensity regression: {str(e)}")
                             pass
 
-                    # שילובים
+                    # שילובים בין משך זמן ועצימות
                     if len(activity_df) >= 4 and len(activity_df["intensity"].unique()) > 1:
                         try:
                             combined_features = pd.DataFrame()
@@ -612,8 +619,10 @@ def analyze_activity_effect(df, target_column, preprocessor):
                                             "feature_value": f"{activity} {duration_desc} with {intensity_value} intensity",
                                             "effect": round(coef, 4)
                                         })
-                        except:
+                        except Exception as e:
+                            print(f"Error in combined features regression: {str(e)}")
                             pass
+
         except Exception as e:
             print(f"Error in detailed activity analysis: {str(e)}")
             pass
@@ -623,6 +632,7 @@ def analyze_activity_effect(df, target_column, preprocessor):
 
     except Exception as e:
         return [f"Error in activity pattern analysis: {str(e)}"]
+
 
 
 def analyze_medication_patterns(data, mood_field):
