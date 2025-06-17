@@ -1,4 +1,3 @@
-You said:
 import gradio as gr
 import json
 import tempfile
