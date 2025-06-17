@@ -495,7 +495,7 @@ def prepare_medication_and_mood_data(data, mood_field):
     return medication_df, mood_df
 
 # פונקציות ניתוח מתקדמות - עם רגרסיה לינארית
-def analyze_activity_effect(df, target_column, preprocessor):
+def analyze_activity_patterns(df, target_column, preprocessor):
     try:
         # סינון נתונים חסרים
         df = df[df[target_column].notna()]
